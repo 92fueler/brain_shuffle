@@ -1,0 +1,22 @@
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: brain_shuffle_db
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-brain_shuffle}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-brain_shuffle_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-brain_shuffle}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-brain_shuffle} -d ${POSTGRES_DB:-brain_shuffle}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+    driver: local
