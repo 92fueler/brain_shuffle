@@ -88,63 +88,6 @@ interface PythonScratchpadProps {
   onClear: () => void;
 }
 
-// Custom theme aligning CodeMirror with the application dark palette
-const appDarkTheme = EditorView.theme(
-  {
-    "&": {
-      height: "100%",
-      backgroundColor: "#090d16",
-      color: "#e2e8f0",
-      fontSize: "12.5px",
-      fontFamily:
-        'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace',
-    },
-    ".cm-content": {
-      fontFamily: "inherit",
-      lineHeight: "20px",
-      padding: "10px 0",
-      caretColor: "#38bdf8",
-    },
-    ".cm-cursor, .cm-dropCursor": {
-      borderLeftColor: "#38bdf8",
-      borderLeftWidth: "2px",
-    },
-    "&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection": {
-      backgroundColor: "rgba(59, 130, 246, 0.35) !important",
-    },
-    ".cm-gutters": {
-      backgroundColor: "#060911",
-      color: "#475569",
-      borderRight: "1px solid #1e293b",
-      fontFamily: "inherit",
-      fontSize: "12px",
-      lineHeight: "20px",
-      padding: "10px 0",
-      userSelect: "none",
-    },
-    ".cm-lineNumbers .cm-gutterElement": {
-      padding: "0 6px 0 6px",
-      minWidth: "24px",
-      textAlign: "right",
-    },
-    ".cm-activeLine": {
-      backgroundColor: "rgba(255, 255, 255, 0.03)",
-    },
-    ".cm-activeLineGutter": {
-      backgroundColor: "rgba(255, 255, 255, 0.06)",
-      color: "#94a3b8",
-    },
-    ".cm-scroller": {
-      overflow: "auto",
-      fontFamily: "inherit",
-    },
-    ".cm-line": {
-      padding: "0 6px",
-    },
-  },
-  { dark: true }
-);
-
 export const PythonScratchpad: React.FC<PythonScratchpadProps> = ({
   problemId: _problemId,
   value,
@@ -152,6 +95,46 @@ export const PythonScratchpad: React.FC<PythonScratchpadProps> = ({
   onClear,
 }) => {
   const [copied, setCopied] = useState<boolean>(false);
+
+  // Font size state (default: 11px, as Roboto Mono is naturally large)
+  const [fontSize, setFontSize] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem("preferred_scratchpad_font_size");
+      if (saved) {
+        const parsed = parseFloat(saved);
+        if (!isNaN(parsed) && parsed >= 9.5 && parsed <= 16) {
+          return parsed;
+        }
+      }
+    } catch {
+      // Ignore
+    }
+    return 11;
+  });
+
+  const handleDecreaseFontSize = () => {
+    setFontSize((prev) => {
+      const next = Math.max(9.5, Math.round((prev - 0.5) * 10) / 10);
+      try {
+        localStorage.setItem("preferred_scratchpad_font_size", next.toString());
+      } catch {
+        // Ignore
+      }
+      return next;
+    });
+  };
+
+  const handleIncreaseFontSize = () => {
+    setFontSize((prev) => {
+      const next = Math.min(16, Math.round((prev + 0.5) * 10) / 10);
+      try {
+        localStorage.setItem("preferred_scratchpad_font_size", next.toString());
+      } catch {
+        // Ignore
+      }
+      return next;
+    });
+  };
 
   // Selected language state persisted in localStorage
   const [language, setLanguage] = useState<SupportedLanguage>(() => {
@@ -178,25 +161,25 @@ export const PythonScratchpad: React.FC<PythonScratchpadProps> = ({
     }
   };
 
-  // Preferred editor height state (default: 380px, range: 260px - 820px)
+  // Preferred editor height state (default: 260px, range: 180px - 820px)
   const [editorHeight, setEditorHeight] = useState<number>(() => {
     try {
       const saved = localStorage.getItem("preferred_scratchpad_height");
       if (saved) {
         const parsed = parseInt(saved, 10);
-        if (!isNaN(parsed) && parsed >= 260 && parsed <= 820) {
+        if (!isNaN(parsed) && parsed >= 180 && parsed <= 820) {
           return parsed;
         }
       }
     } catch {
       // Ignore storage errors
     }
-    return 380;
+    return 260;
   });
 
   const isDraggingRef = useRef<boolean>(false);
   const startYRef = useRef<number>(0);
-  const startHeightRef = useRef<number>(380);
+  const startHeightRef = useRef<number>(260);
 
   const handleResizeMouseDown = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -207,7 +190,7 @@ export const PythonScratchpad: React.FC<PythonScratchpadProps> = ({
     const handleMouseMove = (moveEvent: MouseEvent) => {
       if (!isDraggingRef.current) return;
       const delta = moveEvent.clientY - startYRef.current;
-      const nextHeight = Math.min(820, Math.max(260, startHeightRef.current + delta));
+      const nextHeight = Math.min(820, Math.max(180, startHeightRef.current + delta));
       setEditorHeight(nextHeight);
       try {
         localStorage.setItem("preferred_scratchpad_height", nextHeight.toString());
@@ -250,16 +233,79 @@ export const PythonScratchpad: React.FC<PythonScratchpadProps> = ({
     }
   }, [language]);
 
+  // Dynamic theme extension with Roboto Mono, compact padding, and tight line height
+  const dynamicTheme = useMemo<Extension>(() => {
+    const fs = fontSize;
+    const lh = Math.round(fs * 1.45);
+    const gutterFs = Math.max(9.5, fs - 0.5);
+
+    return EditorView.theme(
+      {
+        "&": {
+          height: "100%",
+          backgroundColor: "#090d16",
+          color: "#e2e8f0",
+          fontSize: `${fs}px`,
+          fontFamily:
+            "'Roboto Mono', 'SF Mono', Consolas, Monaco, monospace",
+        },
+        ".cm-content": {
+          fontFamily: "inherit",
+          lineHeight: `${lh}px`,
+          padding: "4px 0",
+          caretColor: "#38bdf8",
+        },
+        ".cm-cursor, .cm-dropCursor": {
+          borderLeftColor: "#38bdf8",
+          borderLeftWidth: "2px",
+        },
+        "&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection": {
+          backgroundColor: "rgba(59, 130, 246, 0.35) !important",
+        },
+        ".cm-gutters": {
+          backgroundColor: "#060911",
+          color: "#475569",
+          borderRight: "1px solid #1e293b",
+          fontFamily: "inherit",
+          fontSize: `${gutterFs}px`,
+          lineHeight: `${lh}px`,
+          padding: "4px 0",
+          userSelect: "none",
+        },
+        ".cm-lineNumbers .cm-gutterElement": {
+          padding: "0 4px 0 4px",
+          minWidth: "20px",
+          textAlign: "right",
+        },
+        ".cm-activeLine": {
+          backgroundColor: "rgba(255, 255, 255, 0.03)",
+        },
+        ".cm-activeLineGutter": {
+          backgroundColor: "rgba(255, 255, 255, 0.06)",
+          color: "#94a3b8",
+        },
+        ".cm-scroller": {
+          overflow: "auto",
+          fontFamily: "inherit",
+        },
+        ".cm-line": {
+          padding: "0 4px",
+        },
+      },
+      { dark: true }
+    );
+  }, [fontSize]);
+
   // Combined CodeMirror extensions
   const extensions = useMemo<Extension[]>(() => {
     return [
       oneDark,
-      appDarkTheme,
+      dynamicTheme,
       indentUnit.of("    "),
       keymap.of([indentWithTab]),
       languageExtension,
     ];
-  }, [languageExtension]);
+  }, [dynamicTheme, languageExtension]);
 
   const activeOption = useMemo(() => {
     return (
@@ -292,11 +338,11 @@ export const PythonScratchpad: React.FC<PythonScratchpadProps> = ({
   );
 
   return (
-    <div className="python-scratchpad-container">
+    <div className="python-scratchpad-container compact-pad">
       {/* Editor Header */}
       <div className="scratchpad-header">
         <div className="scratchpad-lang-badge">
-          <Code2 size={14} className="text-sky-400" />
+          <Code2 size={13} className="text-sky-400" />
           <div className="scratchpad-lang-selector-wrap">
             <select
               className="scratchpad-lang-select"
@@ -317,6 +363,29 @@ export const PythonScratchpad: React.FC<PythonScratchpadProps> = ({
         </div>
 
         <div className="scratchpad-actions">
+          {/* Font Size Adjuster Stepper */}
+          <div className="scratchpad-font-stepper" title={`Code editor font size: ${fontSize}px`}>
+            <button
+              type="button"
+              className="scratchpad-font-step-btn"
+              onClick={handleDecreaseFontSize}
+              disabled={fontSize <= 9.5}
+              title="Decrease font size (A-)"
+            >
+              A-
+            </button>
+            <span className="scratchpad-font-val">{fontSize}px</span>
+            <button
+              type="button"
+              className="scratchpad-font-step-btn"
+              onClick={handleIncreaseFontSize}
+              disabled={fontSize >= 16}
+              title="Increase font size (A+)"
+            >
+              A+
+            </button>
+          </div>
+
           {value && (
             <>
               <span className="code-stats-pill">

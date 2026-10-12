@@ -12,6 +12,8 @@
   --accent-green: #10b981;
   --accent-orange: #f59e0b;
   --accent-red: #ef4444;
+  --font-code: 'Roboto Mono', 'SF Mono', Consolas, Monaco, monospace;
+  --font-notes: Arial, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 body {
@@ -413,13 +415,13 @@ html {
   background: var(--bg-tertiary);
 }
 
-/* Flashcard */
+/* Flashcard - permanently compact */
 .card {
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
-  border-radius: 16px;
-  padding: 32px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  border-radius: 14px;
+  padding: 18px 22px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
   display: flex;
   flex-direction: column;
 }
@@ -428,7 +430,15 @@ html {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 12px;
+}
+
+.card-compact-header {
+  margin-bottom: 8px;
+}
+
+.problem-title-compact {
+  font-size: 15px;
 }
 
 .badge-row {
@@ -609,10 +619,65 @@ html {
   gap: 8px;
 }
 
+.scratchpad-font-stepper {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid var(--border-color);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.scratchpad-font-step-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+  line-height: 1.3;
+}
+
+.scratchpad-font-step-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.scratchpad-font-step-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.scratchpad-font-val {
+  font-size: 10px;
+  font-weight: 600;
+  color: #94a3b8;
+  padding: 0 4px;
+  font-family: var(--font-code);
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.python-scratchpad-container.compact-pad {
+  margin: 6px 0 10px;
+  gap: 4px;
+}
+
+.python-scratchpad-container.compact-pad .scratchpad-header {
+  padding: 0 1px;
+}
+
+.python-scratchpad-container.compact-pad .scratchpad-lang-select {
+  font-size: 11px;
+  padding: 2px 18px 2px 6px;
+}
+
 .code-stats-pill {
   font-size: 11px;
   color: #64748b;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-family: var(--font-code);
 }
 
 .scratchpad-action-btn {
@@ -647,7 +712,7 @@ html {
   background: #090d16;
   border: 1px solid var(--border-color);
   border-radius: 10px 10px 4px 4px;
-  min-height: 260px;
+  min-height: 180px;
   max-height: 820px;
   overflow: hidden;
   box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.4);
@@ -668,7 +733,7 @@ html {
 
 .code-editor-box .cm-scroller {
   height: 100% !important;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace !important;
+  font-family: var(--font-code) !important;
 }
 
 .scratchpad-resize-bar {
@@ -714,21 +779,21 @@ html {
 /* Hints Action Bar */
 .hints-action-bar {
   display: flex;
-  gap: 12px;
+  gap: 8px;
   flex-wrap: wrap;
-  margin: 12px 0 16px;
+  margin: 8px 0 10px;
 }
 
 .hint-toggle-btn {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   background: var(--bg-tertiary);
   border: 1px solid var(--border-color);
   color: #f1f5f9;
-  padding: 9px 18px;
-  border-radius: 8px;
-  font-size: 13px;
+  padding: 6px 12px;
+  border-radius: 7px;
+  font-size: 11.5px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -747,25 +812,25 @@ html {
 
 .prompt-section {
   background: var(--bg-primary);
-  border-radius: 12px;
-  padding: 20px;
+  border-radius: 8px;
+  padding: 10px 14px;
   border: 1px solid var(--border-color);
-  margin-bottom: 16px;
+  margin-bottom: 8px;
 }
 
 .section-label {
-  font-size: 12px;
+  font-size: 10.5px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--text-muted);
-  margin-bottom: 8px;
+  margin-bottom: 5px;
 }
 
 .prompt-text {
-  font-size: 16px;
-  line-height: 1.6;
-  color: #fff;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: #f8fafc;
   white-space: pre-wrap;
   tab-size: 4;
   -moz-tab-size: 4;
@@ -774,57 +839,74 @@ html {
 
 .tag-list {
   display: flex;
-  gap: 8px;
-  margin-bottom: 24px;
+  gap: 6px;
+  margin-bottom: 10px;
   flex-wrap: wrap;
 }
 
 .tag-pill {
-  font-size: 12px;
+  font-size: 10.5px;
   color: var(--text-muted);
   background: var(--bg-tertiary);
-  padding: 2px 8px;
+  padding: 2px 7px;
   border-radius: 4px;
 }
 
 .notes-section {
-  margin-top: 20px;
-  padding: 20px;
+  margin-top: 10px;
+  padding: 10px 14px;
   background: rgba(15, 23, 42, 0.7);
-  border-radius: 12px;
+  border-radius: 8px;
   border: 1px solid rgba(139, 92, 246, 0.3);
-  animation: fadeIn 0.3s ease;
+  animation: fadeIn 0.2s ease;
 }
 
 .notes-content {
-  font-size: 14px;
-  line-height: 1.65;
+  font-size: 13px;
+  line-height: 1.5;
   color: #e2e8f0;
   white-space: pre-wrap;
   tab-size: 4;
   -moz-tab-size: 4;
   word-break: break-word;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
-  margin-bottom: 24px;
+  font-family: var(--font-notes);
+  margin-bottom: 8px;
 }
 
 .feedback-section {
   border-top: 1px solid var(--border-color);
-  padding-top: 20px;
+  padding-top: 12px;
   text-align: center;
 }
 
 .feedback-prompt {
-  font-size: 14px;
+  font-size: 11.5px;
   color: var(--text-muted);
-  margin-bottom: 14px;
+  margin-bottom: 8px;
 }
 
 .cadence-action-row {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 10px;
-  margin-top: 10px;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.cadence-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+  outline: none;
 }
 
 @media (max-width: 640px) {
@@ -1453,16 +1535,17 @@ html {
 }
 
 .prompt-editor-textarea {
-  min-height: 90px;
+  min-height: 75px;
+  font-size: 13px !important;
+  line-height: 1.45 !important;
   resize: vertical;
-  line-height: 1.5;
 }
 
 .notes-editor-textarea {
-  min-height: 240px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace !important;
+  min-height: 180px;
+  font-family: var(--font-notes) !important;
   font-size: 13px !important;
-  line-height: 1.55 !important;
+  line-height: 1.5 !important;
   tab-size: 4;
   resize: vertical;
 }
@@ -1595,7 +1678,7 @@ html {
 }
 
 .canonical-path-chip code {
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-code);
   font-size: 12px;
   background: rgba(255, 255, 255, 0.06);
   padding: 2px 8px;
@@ -1920,7 +2003,7 @@ html {
 
 .hub-tab-count {
   font-size: 11px;
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-code);
   background: rgba(0, 0, 0, 0.35);
   padding: 2px 7px;
   border-radius: 10px;
@@ -1993,7 +2076,7 @@ html {
 
 .deck-problem-count {
   font-size: 12px;
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-code);
   color: var(--text-muted);
 }
 
@@ -2020,7 +2103,7 @@ html {
 
 .mini-domain-tag {
   font-size: 11px;
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-code);
   padding: 2px 7px;
   border-radius: 5px;
 }
@@ -2533,7 +2616,7 @@ html {
 }
 
 .cat-item-slug {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-family: var(--font-code);
   font-size: 11px;
   color: #94a3b8;
   background: rgba(255, 255, 255, 0.06);
@@ -2690,8 +2773,8 @@ html {
 .note-card-view {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  margin: 8px 0 16px;
+  gap: 10px;
+  margin: 6px 0 12px;
   width: 100%;
   text-align: left;
 }
@@ -2699,8 +2782,8 @@ html {
 .note-prompt-container {
   background: rgba(15, 23, 42, 0.7);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 10px;
-  padding: 16px 20px;
+  border-radius: 8px;
+  padding: 9px 13px;
   position: relative;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
   transition: border-color 0.15s ease;
@@ -2711,20 +2794,21 @@ html {
 }
 
 .note-prompt-kicker {
-  font-size: 10.5px;
+  font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: #818cf8;
   display: block;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 
 .note-prompt-heading {
   margin: 0;
-  font-size: 17px;
+  font-family: var(--font-notes);
+  font-size: 14px;
   font-weight: 600;
-  line-height: 1.5;
+  line-height: 1.45;
   color: #f8fafc;
   white-space: pre-wrap;
   word-break: break-word;
@@ -2733,19 +2817,19 @@ html {
 .note-reveal-action-bar {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .note-reveal-btn {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
   background: rgba(99, 102, 241, 0.12);
   border: 1px solid rgba(99, 102, 241, 0.35);
   color: #c7d2fe;
-  padding: 8px 18px;
-  border-radius: 7px;
-  font-size: 13px;
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 11.5px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.18s ease;
@@ -2769,9 +2853,9 @@ html {
 }
 
 .note-solution-section {
-  padding: 16px 20px;
+  padding: 9px 13px;
   background: rgba(15, 23, 42, 0.85);
-  border-radius: 10px;
+  border-radius: 8px;
   border: 1px solid rgba(99, 102, 241, 0.3);
   animation: fadeIn 0.22s ease-out;
 }
