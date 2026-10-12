@@ -23,8 +23,37 @@ export async function createCategory(slug: string, name: string, description?: s
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ slug, name, description }),
   });
-  if (!res.ok) throw new Error("Failed to create category");
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Failed to create category");
+  }
   return res.json();
+}
+
+export async function updateCategory(
+  id: string,
+  payload: { name?: string; slug?: string; description?: string }
+): Promise<Category> {
+  const res = await fetch(`${BASE_URL}/categories/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Failed to update category");
+  }
+  return res.json();
+}
+
+export async function deleteCategory(id: string): Promise<void> {
+  const res = await fetch(`${BASE_URL}/categories/${id}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Failed to delete category");
+  }
 }
 
 export async function fetchProblems(

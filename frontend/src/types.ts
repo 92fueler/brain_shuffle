@@ -107,3 +107,9 @@ export interface BackupPayload {
     problem_titles: string[];
   }[];
 }
+
+export const isProblemCategory = (slug?: string | null): boolean => {
+  if (!slug) return true;
+  const s = slug.toLowerCase();
+  return s === "coding" || s.startsWith("system_design") || s.startsWith("system-design");
+};

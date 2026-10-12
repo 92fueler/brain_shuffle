@@ -1,12 +1,23 @@
 import React, { useState } from "react";
 import type { Problem, ReviewAction } from "../types";
+import { isProblemCategory } from "../types";
+import { formatCategoryName, getCategoryTheme } from "../categoryTheme";
 import { submitReview } from "../api";
-import { Tag, Lightbulb, CheckCircle2, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  Tag,
+  Lightbulb,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  BookOpen,
+  EyeOff,
+} from "lucide-react";
 import { PythonScratchpad } from "./PythonScratchpad";
 
 interface ProblemFlashcardProps {
   problem: Problem;
   categoryName?: string;
+  categorySlug?: string;
   counterText?: string;
   onRating?: (rating: ReviewAction) => Promise<void> | void;
   submitting?: boolean;
@@ -21,6 +32,7 @@ interface ProblemFlashcardProps {
 export const ProblemFlashcard: React.FC<ProblemFlashcardProps> = ({
   problem,
   categoryName,
+  categorySlug,
   counterText,
   onRating,
   submitting = false,
@@ -42,6 +54,14 @@ export const ProblemFlashcard: React.FC<ProblemFlashcardProps> = ({
   });
   const [internalSubmitting, setInternalSubmitting] = useState<boolean>(false);
   const [reviewedMessage, setReviewedMessage] = useState<string | null>(null);
+
+  const isNote = categorySlug
+    ? !isProblemCategory(categorySlug)
+    : Boolean(
+        categoryName &&
+          !categoryName.toLowerCase().includes("coding") &&
+          !categoryName.toLowerCase().includes("system design")
+      );
 
   // Synchronously reset and sync state if problem.id changes
   const [trackedProblemId, setTrackedProblemId] = useState<string>(problem.id);
@@ -110,7 +130,14 @@ export const ProblemFlashcard: React.FC<ProblemFlashcardProps> = ({
       {/* Top Bar: Category Pill & Stats Counter */}
       <div className="card-top-bar">
         <div className="badge-row">
-          {categoryName && <span className="badge category-badge">{categoryName}</span>}
+          {categoryName && (
+            <span
+              className={`badge category-badge ${isNote ? "note-category-badge" : ""}`}
+              style={getCategoryTheme(categorySlug || categoryName).style}
+            >
+              {formatCategoryName(categoryName)} {isNote ? "Note" : ""}
+            </span>
+          )}
           {problem.review_count > 0 ? (
             <>
               <span className="badge stats-badge">
@@ -155,67 +182,98 @@ export const ProblemFlashcard: React.FC<ProblemFlashcardProps> = ({
         )}
       </div>
 
-      {/* Compact Problem Title Header */}
-      <div className="card-compact-header">
-        <h2 className="problem-title-compact">{problem.title}</h2>
-      </div>
+      {isNote ? (
+        /* NOTE ACTIVE RECALL: Only the prompt is visible initially */
+        <div className="note-card-view">
+          <div className="note-prompt-container">
+            <span className="note-prompt-kicker">Recall Prompt</span>
+            <h2 className="note-prompt-heading">{problem.prompt || problem.title}</h2>
+          </div>
 
-      {/* Python Code Block Scratchpad */}
-      <PythonScratchpad
-        problemId={problem.id}
-        value={scratchpad}
-        onChange={handleScratchpadChange}
-        onClear={handleClearScratchpad}
-      />
+          <div className="note-reveal-action-bar">
+            <button
+              type="button"
+              className={`note-reveal-btn ${showSolution ? "revealed" : ""}`}
+              onClick={() => setShowSolution(!showSolution)}
+            >
+              {showSolution ? <EyeOff size={16} /> : <BookOpen size={16} />}
+              <span>{showSolution ? "Hide Note" : "Reveal Note / Key Takeaway"}</span>
+            </button>
+          </div>
 
-      {/* Progressive Reveal Action Bar */}
-      <div className="hints-action-bar">
-        <button
-          type="button"
-          className={`hint-toggle-btn ${showHints ? "active" : ""}`}
-          onClick={() => setShowHints(!showHints)}
-          title="Toggle Hints"
-        >
-          <Lightbulb size={16} />
-          <span>Hints</span>
-        </button>
-
-        <button
-          type="button"
-          className={`hint-toggle-btn ${showSolution ? "active" : ""}`}
-          onClick={() => setShowSolution(!showSolution)}
-          title="Toggle Notes"
-        >
-          <CheckCircle2 size={16} />
-          <span>Notes</span>
-        </button>
-      </div>
-
-      {/* Hints Section */}
-      {showHints && (
-        <div className="prompt-section">
-          <div className="section-label">Hints:</div>
-          <div className="prompt-text">{problem.prompt}</div>
-        </div>
-      )}
-
-      {/* Reference Notes & Solution Section */}
-      {showSolution && (
-        <div className="notes-section">
-          <div className="section-label">Notes:</div>
-          <div className="notes-content">{problem.notes}</div>
-
-          {/* Subtopic Tags */}
-          {problem.tags && problem.tags.length > 0 && (
-            <div className="tag-list">
-              {problem.tags.map((t, i) => (
-                <span key={i} className="tag-pill">
-                  <Tag size={10} /> #{t}
-                </span>
-              ))}
+          {showSolution && (
+            <div className="note-solution-section">
+              <div className="section-label">Note & Key Takeaways:</div>
+              <div className="notes-content">{problem.notes}</div>
             </div>
           )}
         </div>
+      ) : (
+        /* INTERVIEW PROBLEM VIEW */
+        <>
+          {/* Compact Problem Title Header */}
+          <div className="card-compact-header">
+            <h2 className="problem-title-compact">{problem.title}</h2>
+          </div>
+
+          {/* Python Code Block Scratchpad */}
+          <PythonScratchpad
+            problemId={problem.id}
+            value={scratchpad}
+            onChange={handleScratchpadChange}
+            onClear={handleClearScratchpad}
+          />
+
+          {/* Progressive Reveal Action Bar */}
+          <div className="hints-action-bar">
+            <button
+              type="button"
+              className={`hint-toggle-btn ${showHints ? "active" : ""}`}
+              onClick={() => setShowHints(!showHints)}
+              title="Toggle Hints"
+            >
+              <Lightbulb size={16} />
+              <span>Hints</span>
+            </button>
+
+            <button
+              type="button"
+              className={`hint-toggle-btn ${showSolution ? "active" : ""}`}
+              onClick={() => setShowSolution(!showSolution)}
+              title="Toggle Notes"
+            >
+              <CheckCircle2 size={16} />
+              <span>Notes</span>
+            </button>
+          </div>
+
+          {/* Hints Section */}
+          {showHints && (
+            <div className="prompt-section">
+              <div className="section-label">Hints:</div>
+              <div className="prompt-text">{problem.prompt}</div>
+            </div>
+          )}
+
+          {/* Reference Notes & Solution Section */}
+          {showSolution && (
+            <div className="notes-section">
+              <div className="section-label">Notes:</div>
+              <div className="notes-content">{problem.notes}</div>
+
+              {/* Subtopic Tags */}
+              {problem.tags && problem.tags.length > 0 && (
+                <div className="tag-list">
+                  {problem.tags.map((t, i) => (
+                    <span key={i} className="tag-pill">
+                      <Tag size={10} /> #{t}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </>
       )}
 
       {/* Refined, Always-Available Rolling Cadence Action Bar */}

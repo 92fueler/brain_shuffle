@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import type { Category, Problem, CompanyStat, ReviewAction, ReviewList } from "../types";
+import { isProblemCategory } from "../types";
+import { formatCategoryName, getCategoryTheme } from "../categoryTheme";
 import { fetchShuffleBatch, submitReview, deleteReviewList } from "../api";
 import { ProblemFlashcard } from "./ProblemFlashcard";
 import {
@@ -13,6 +15,7 @@ import {
   Cpu,
   Search,
   Trash2,
+  BookOpen,
 } from "lucide-react";
 
 interface ActiveDeckConfig {
@@ -24,11 +27,12 @@ interface ActiveDeckConfig {
   totalCount?: number;
 }
 
-type ChannelTab = "company-all" | "coding-only" | "sysdesign-only" | "custom-decks";
+type ChannelTab = "topics" | "company-all" | "coding-only" | "sysdesign-only" | "custom-decks";
 
 interface ShuffleViewProps {
   categories: Category[];
   companies: CompanyStat[];
+  allProblems?: Problem[];
   reviewLists?: ReviewList[];
   activeReviewList: {
     id: string;
@@ -43,13 +47,14 @@ interface ShuffleViewProps {
 export const ShuffleView: React.FC<ShuffleViewProps> = ({
   categories,
   companies,
+  allProblems = [],
   reviewLists = [],
   activeReviewList,
   onClearReviewList,
   onRefreshReviewLists,
 }) => {
   const [activeDeck, setActiveDeck] = useState<ActiveDeckConfig | null>(null);
-  const [activeChannel, setActiveChannel] = useState<ChannelTab>("company-all");
+  const [activeChannel, setActiveChannel] = useState<ChannelTab>("topics");
   const [searchQuery, setSearchQuery] = useState<string>("");
 
   const [problems, setProblems] = useState<Problem[]>([]);
@@ -78,9 +83,9 @@ export const ShuffleView: React.FC<ShuffleViewProps> = ({
         categoryId: target.categoryId || undefined,
         company: target.company || undefined,
         reviewListId: target.reviewListId || undefined,
-        limit: target.reviewListId || target.company ? 50 : 5,
+        limit: target.reviewListId || target.company || target.categoryId ? 50 : 5,
         mode: effectiveMode,
-        excludeIds: target.reviewListId || target.company ? [] : recentTestedIds.slice(-3),
+        excludeIds: target.reviewListId || target.company || target.categoryId ? [] : recentTestedIds.slice(-3),
       });
       setProblems(batch);
       setCurrentIndex(0);
@@ -201,7 +206,12 @@ export const ShuffleView: React.FC<ShuffleViewProps> = ({
 
   const getCategoryName = (id: string) => {
     const cat = categories.find((c) => c.id === id);
-    return cat ? cat.name : "Problem";
+    return cat ? formatCategoryName(cat.name) : "Problem";
+  };
+
+  const getCategorySlug = (id: string) => {
+    const cat = categories.find((c) => c.id === id);
+    return cat ? cat.slug : "";
   };
 
   // Filtered company lists
@@ -260,6 +270,15 @@ export const ShuffleView: React.FC<ShuffleViewProps> = ({
           <div className="hub-channel-tabs">
             <button
               type="button"
+              className={`hub-tab-btn ${activeChannel === "topics" ? "active" : ""}`}
+              onClick={() => setActiveChannel("topics")}
+            >
+              <BookOpen size={16} /> Topics & Categories
+              <span className="hub-tab-count">{categories.length}</span>
+            </button>
+
+            <button
+              type="button"
               className={`hub-tab-btn ${activeChannel === "company-all" ? "active" : ""}`}
               onClick={() => setActiveChannel("company-all")}
             >
@@ -299,13 +318,81 @@ export const ShuffleView: React.FC<ShuffleViewProps> = ({
             <Search size={15} className="hub-search-icon" />
             <input
               type="text"
-              placeholder="Search companies or decks..."
+              placeholder="Search companies, topics, or decks..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="hub-search-input"
             />
           </div>
         </div>
+
+        {/* CHANNEL 0: TOPICS & CATEGORIES (KNOWLEDGE NOTES & CODING TOPICS) */}
+        {activeChannel === "topics" && (
+          <div className="deck-grid">
+            {categories
+              .filter(
+                (c) =>
+                  !query ||
+                  c.name.toLowerCase().includes(query) ||
+                  c.slug.toLowerCase().includes(query)
+              )
+              .map((cat) => {
+                const count = allProblems.filter((p) => p.category_id === cat.id).length;
+                const isProb = isProblemCategory(cat.slug);
+                const theme = getCategoryTheme(cat.slug || cat.name);
+                const displayName = formatCategoryName(cat.name);
+
+                return (
+                  <div key={cat.id} className="deck-card">
+                    <div className="deck-card-body">
+                      <div className="deck-card-top">
+                        <span
+                          className="company-badge"
+                          style={{
+                            color: theme.color,
+                            backgroundColor: theme.bg,
+                            borderColor: theme.border,
+                          }}
+                        >
+                          {isProb ? "💻 Problem Track" : "📝 Knowledge Notes"}
+                        </span>
+                        <span className="deck-problem-count">
+                          {count} {isProb ? (count === 1 ? "Problem" : "Problems") : (count === 1 ? "Note" : "Notes")}
+                        </span>
+                      </div>
+
+                      <h3 className="deck-card-title">{displayName}</h3>
+                      {cat.description ? (
+                        <p className="deck-card-desc">{cat.description}</p>
+                      ) : (
+                        <p className="deck-card-desc">
+                          {isProb ? "Coding and technical drill questions." : "Concept review and knowledge notes."}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="deck-card-actions">
+                      <button
+                        type="button"
+                        className="deck-launch-btn"
+                        onClick={() =>
+                          handleLaunchDeck({
+                            title: `${displayName} Deck`,
+                            subtitle: `Review all cards in ${displayName}`,
+                            categoryId: cat.id,
+                            totalCount: count,
+                          })
+                        }
+                        disabled={count === 0}
+                      >
+                        {count === 0 ? "Empty Deck" : `Review Deck (${count}) →`}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        )}
 
         {/* CHANNEL 1: FULL COMPANY LOOPS (CODING + SYSTEM DESIGN COMBINED) */}
         {activeChannel === "company-all" && (
@@ -617,6 +704,7 @@ export const ShuffleView: React.FC<ShuffleViewProps> = ({
           key={currentProblem.id}
           problem={currentProblem}
           categoryName={getCategoryName(currentProblem.category_id)}
+          categorySlug={getCategorySlug(currentProblem.category_id)}
           counterText={`Card ${currentIndex + 1} of ${problems.length}`}
           onRating={handleRating}
           submitting={submitting}

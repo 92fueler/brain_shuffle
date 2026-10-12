@@ -18,7 +18,7 @@ def list_problems(
     search: Optional[str] = Query(None, description="Search by title, prompt, company, or tag"),
     session: Session = Depends(get_session),
 ) -> List[Problem]:
-    query = select(Problem)
+    query = select(Problem).order_by(Problem.created_at.desc())
     if category_id:
         query = query.where(Problem.category_id == category_id)
 

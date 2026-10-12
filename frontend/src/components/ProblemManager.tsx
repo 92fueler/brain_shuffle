@@ -1,13 +1,37 @@
 import React, { useState } from "react";
 import type { Category, Problem, ProblemCreatePayload } from "../types";
-import { createProblem, updateProblem, deleteProblem, createCategory, createReviewList } from "../api";
-import { Plus, Search, Trash2, FolderPlus, ChevronDown, ChevronUp, Pencil, Layers, CheckSquare, Square } from "lucide-react";
+import { isProblemCategory } from "../types";
+import { formatCategoryName, getCategoryTheme } from "../categoryTheme";
+import {
+  createProblem,
+  updateProblem,
+  deleteProblem,
+  createCategory,
+  updateCategory,
+  deleteCategory,
+  createReviewList,
+} from "../api";
+import {
+  Plus,
+  Search,
+  Trash2,
+  FolderCog,
+  ChevronDown,
+  ChevronUp,
+  Pencil,
+  Layers,
+  CheckSquare,
+  Square,
+  Check,
+  X,
+  AlertCircle,
+} from "lucide-react";
 import { ProblemFlashcard } from "./ProblemFlashcard";
 
 interface ProblemManagerProps {
   categories: Category[];
   problems: Problem[];
-  onRefresh: () => void;
+  onRefresh: () => Promise<void> | void;
   selectedCategory: string | null;
   onSelectCategory: (id: string | null) => void;
   onStartReviewListShuffle?: (
@@ -41,8 +65,12 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
   const [newDeckDesc, setNewDeckDesc] = useState("");
   const [isCreatingDeck, setIsCreatingDeck] = useState(false);
 
-  // Form State (New Problem)
-  const [formCatId, setFormCatId] = useState(categories[0]?.id || "");
+  // Mode State: "note" (for non-coding active recall notes) vs "problem" (for coding / sysdesign interview tracks)
+  const [formMode, setFormMode] = useState<"note" | "problem">("note");
+  const [editFormMode, setEditFormMode] = useState<"note" | "problem">("note");
+
+  // Form State (New Problem / Note)
+  const [formCatId, setFormCatId] = useState("");
   const [title, setTitle] = useState("");
   const [prompt, setPrompt] = useState("");
   const [notes, setNotes] = useState("");
@@ -61,10 +89,47 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
   const [editCadence, setEditCadence] = useState("weekly");
   const [isUpdating, setIsUpdating] = useState(false);
 
-  // Category Form State
+  // Category Form & Manager State
   const [newCatSlug, setNewCatSlug] = useState("");
   const [newCatName, setNewCatName] = useState("");
   const [newCatDesc, setNewCatDesc] = useState("");
+  const [isSlugManuallyEdited, setIsSlugManuallyEdited] = useState(false);
+  const [catError, setCatError] = useState<string | null>(null);
+  const [catSuccess, setCatSuccess] = useState<string | null>(null);
+  const [isCatSubmitting, setIsCatSubmitting] = useState(false);
+
+  // Category Edit State
+  const [editingCatId, setEditingCatId] = useState<string | null>(null);
+  const [editCatName, setEditCatName] = useState("");
+  const [editCatSlug, setEditCatSlug] = useState("");
+  const [editCatDesc, setEditCatDesc] = useState("");
+  const [isCatUpdating, setIsCatUpdating] = useState(false);
+  const [deletingCatId, setDeletingCatId] = useState<string | null>(null);
+
+  const activeFormCatId = formCatId || selectedCategory || categories[0]?.id || "";
+
+  const getCategorySlug = (id: string) => {
+    const cat = categories.find((c) => c.id === id);
+    return cat ? cat.slug : "";
+  };
+
+  const handleOpenAddModal = () => {
+    const targetCatId = selectedCategory || (categories.length > 0 ? categories[0].id : "");
+    if (targetCatId) {
+      setFormCatId(targetCatId);
+      const cat = categories.find((c) => c.id === targetCatId);
+      setFormMode(isProblemCategory(cat?.slug) ? "problem" : "note");
+    } else {
+      setFormMode("problem");
+    }
+    setShowAddModal(true);
+  };
+
+  const handleFormCatChange = (catId: string) => {
+    setFormCatId(catId);
+    const cat = categories.find((c) => c.id === catId);
+    setFormMode(isProblemCategory(cat?.slug) ? "problem" : "note");
+  };
 
   const createIndentKeyDownHandler =
     (setter: (val: string) => void) =>
@@ -136,51 +201,74 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
 
   const handleCreateProblem = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title || !prompt || !notes || !formCatId) return;
+    if (!prompt.trim() || !notes.trim() || !activeFormCatId) return;
+    if (formMode === "problem" && !title.trim()) return;
 
     setIsSubmitting(true);
     try {
-      // Tags are preserved strictly the way the user inputs
-      const tags = tagsStr
-        .split(",")
-        .map((t) => t.trim())
-        .filter(Boolean);
+      let finalTitle = title.trim();
+      let finalCompanies: string[] = [];
+      let finalTags: string[] = [];
 
-      // Companies: capitalize first letter of each word (e.g. amazon -> Amazon, two sigma -> Two Sigma)
-      const companies = Array.from(
-        new Set(
-          companiesStr
-            .split(",")
-            .map((c) => c.trim())
-            .filter(Boolean)
-            .map((c) =>
-              c
-                .split(/\s+/)
-                .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1) : ""))
-                .join(" ")
-            )
-        )
-      );
+      if (formMode === "note") {
+        // Idea 1: Prompt is the concept question and row title, zero companies, zero tags
+        finalTitle = prompt.trim();
+        finalCompanies = [];
+        finalTags = [];
+      } else {
+        finalTags = tagsStr
+          .split(",")
+          .map((t) => t.trim())
+          .filter(Boolean);
+
+        finalCompanies = Array.from(
+          new Set(
+            companiesStr
+              .split(",")
+              .map((c) => c.trim())
+              .filter(Boolean)
+              .map((c) =>
+                c
+                  .split(/\s+/)
+                  .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1) : ""))
+                  .join(" ")
+              )
+          )
+        );
+      }
 
       const payload: ProblemCreatePayload = {
-        category_id: formCatId,
-        title,
-        prompt,
-        notes,
-        tags,
-        companies,
+        category_id: activeFormCatId,
+        title: finalTitle,
+        prompt: prompt.trim(),
+        notes: notes.trim(),
+        tags: finalTags,
+        companies: finalCompanies,
       };
 
-      await createProblem(payload);
+      const created = await createProblem(payload);
       setTitle("");
       setPrompt("");
       setNotes("");
       setTagsStr("");
       setCompaniesStr("");
+      setFormCatId(activeFormCatId);
       setShowAddModal(false);
-      onRefresh();
+
+      // 1. Immediately switch the active category to the created problem/note's category
+      onSelectCategory(activeFormCatId);
+
+      // 2. Clear any active search and company filter so the created note is never hidden
+      setSelectedCompanyFilter(null);
+      setSearch("");
+
+      // 3. Automatically expand the newly created item for immediate review
+      setExpandedId(created.id);
+
+      // 4. Await data refresh to guarantee state is synced immediately
+      await onRefresh();
     } catch (err) {
-      console.error("Failed to create problem", err);
+      console.error("Failed to create problem/note", err);
     } finally {
       setIsSubmitting(false);
     }
@@ -196,42 +284,65 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
     setEditTagsStr((problem.tags || []).join(", "));
     setEditCompaniesStr((problem.companies || []).join(", "));
     setEditCadence(problem.cadence || "weekly");
+
+    const cat = categories.find((c) => c.id === problem.category_id);
+    const isProbCat = isProblemCategory(cat?.slug);
+    const isNote = !isProbCat && (!problem.companies || problem.companies.length === 0);
+    setEditFormMode(isNote ? "note" : "problem");
+
     setShowEditModal(true);
+  };
+
+  const handleEditCatChange = (catId: string) => {
+    setEditCatId(catId);
+    const cat = categories.find((c) => c.id === catId);
+    setEditFormMode(isProblemCategory(cat?.slug) ? "problem" : "note");
   };
 
   const handleUpdateProblem = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingProblem || !editTitle || !editPrompt || !editNotes || !editCatId) return;
+    if (!editingProblem || !editPrompt.trim() || !editNotes.trim() || !editCatId) return;
+    if (editFormMode === "problem" && !editTitle.trim()) return;
 
     setIsUpdating(true);
     try {
-      const tags = editTagsStr
-        .split(",")
-        .map((t) => t.trim())
-        .filter(Boolean);
+      let finalTitle = editTitle.trim();
+      let finalTags: string[] = [];
+      let finalCompanies: string[] = [];
 
-      const companies = Array.from(
-        new Set(
-          editCompaniesStr
-            .split(",")
-            .map((c) => c.trim())
-            .filter(Boolean)
-            .map((c) =>
-              c
-                .split(/\s+/)
-                .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1) : ""))
-                .join(" ")
-            )
-        )
-      );
+      if (editFormMode === "note") {
+        finalTitle = editPrompt.trim();
+        finalTags = [];
+        finalCompanies = [];
+      } else {
+        finalTags = editTagsStr
+          .split(",")
+          .map((t) => t.trim())
+          .filter(Boolean);
+
+        finalCompanies = Array.from(
+          new Set(
+            editCompaniesStr
+              .split(",")
+              .map((c) => c.trim())
+              .filter(Boolean)
+              .map((c) =>
+                c
+                  .split(/\s+/)
+                  .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1) : ""))
+                  .join(" ")
+              )
+          )
+        );
+      }
 
       await updateProblem(editingProblem.id, {
         category_id: editCatId,
-        title: editTitle,
-        prompt: editPrompt,
-        notes: editNotes,
-        tags,
-        companies,
+        title: finalTitle,
+        prompt: editPrompt.trim(),
+        notes: editNotes.trim(),
+        tags: finalTags,
+        companies: finalCompanies,
         cadence: editCadence,
       });
 
@@ -239,26 +350,137 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
       setEditingProblem(null);
       onRefresh();
     } catch (err) {
-      console.error("Failed to update problem", err);
+      console.error("Failed to update problem/note", err);
     } finally {
       setIsUpdating(false);
     }
   };
 
+  const handleNewCatNameChange = (val: string) => {
+    setNewCatName(val);
+    if (!isSlugManuallyEdited) {
+      const autoSlug = val
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "");
+      setNewCatSlug(autoSlug);
+    }
+  };
+
+  const handleNewCatSlugChange = (val: string) => {
+    setNewCatSlug(val);
+    setIsSlugManuallyEdited(val.length > 0);
+  };
+
+  const handleCloseCatModal = () => {
+    setShowCatModal(false);
+    setEditingCatId(null);
+    setCatError(null);
+    setCatSuccess(null);
+  };
+
   const handleCreateCat = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newCatSlug || !newCatName) return;
+    if (!newCatSlug.trim() || !newCatName.trim()) return;
 
+    setCatError(null);
+    setCatSuccess(null);
+    setIsCatSubmitting(true);
     try {
-      const created = await createCategory(newCatSlug, newCatName, newCatDesc);
+      const created = await createCategory(
+        newCatSlug.trim().toLowerCase(),
+        newCatName.trim(),
+        newCatDesc.trim() || undefined
+      );
       setNewCatSlug("");
       setNewCatName("");
       setNewCatDesc("");
-      setShowCatModal(false);
+      setIsSlugManuallyEdited(false);
+      setCatSuccess(`Category "${created.name}" created successfully.`);
       onRefresh();
       setFormCatId(created.id);
-    } catch (err) {
+    } catch (err: unknown) {
       console.error("Failed to create category", err);
+      const msg = err instanceof Error ? err.message : "Failed to create category";
+      setCatError(msg);
+    } finally {
+      setIsCatSubmitting(false);
+    }
+  };
+
+  const handleStartEditCat = (cat: Category) => {
+    setEditingCatId(cat.id);
+    setEditCatName(cat.name);
+    setEditCatSlug(cat.slug);
+    setEditCatDesc(cat.description || "");
+    setCatError(null);
+    setCatSuccess(null);
+  };
+
+  const handleCancelEditCat = () => {
+    setEditingCatId(null);
+    setEditCatName("");
+    setEditCatSlug("");
+    setEditCatDesc("");
+  };
+
+  const handleSaveEditCat = async (catId: string) => {
+    if (!editCatName.trim() || !editCatSlug.trim()) {
+      setCatError("Category name and slug are required.");
+      return;
+    }
+    setCatError(null);
+    setCatSuccess(null);
+    setIsCatUpdating(true);
+    try {
+      const updated = await updateCategory(catId, {
+        name: editCatName.trim(),
+        slug: editCatSlug.trim().toLowerCase(),
+        description: editCatDesc.trim(),
+      });
+      setCatSuccess(`Category "${updated.name}" updated successfully.`);
+      setEditingCatId(null);
+      onRefresh();
+    } catch (err: unknown) {
+      console.error("Failed to update category", err);
+      const msg = err instanceof Error ? err.message : "Failed to update category";
+      setCatError(msg);
+    } finally {
+      setIsCatUpdating(false);
+    }
+  };
+
+  const handleDeleteCat = async (cat: Category, problemCount: number) => {
+    setCatError(null);
+    setCatSuccess(null);
+    if (problemCount > 0) {
+      setCatError(
+        `Cannot delete category "${cat.name}" because it contains ${problemCount} problem(s). Please reassign or delete these problems first.`
+      );
+      return;
+    }
+    if (!confirm(`Are you sure you want to delete category "${cat.name}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    setDeletingCatId(cat.id);
+    try {
+      await deleteCategory(cat.id);
+      setCatSuccess(`Category "${cat.name}" deleted.`);
+      if (selectedCategory === cat.id) {
+        onSelectCategory(null);
+      }
+      if (formCatId === cat.id) {
+        setFormCatId("");
+      }
+      onRefresh();
+    } catch (err: unknown) {
+      console.error("Failed to delete category", err);
+      const msg = err instanceof Error ? err.message : "Failed to delete category";
+      setCatError(msg);
+    } finally {
+      setDeletingCatId(null);
     }
   };
 
@@ -279,20 +501,22 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
     return cat ? cat.name : "Problem";
   };
 
-  const filteredProblems = problems.filter((p) => {
-    const matchesCategory = !selectedCategory || p.category_id === selectedCategory;
-    const matchesCompany =
-      !selectedCompanyFilter ||
-      (p.companies && p.companies.some((c) => c.toLowerCase() === selectedCompanyFilter.toLowerCase()));
-    const s = search.toLowerCase();
-    const matchesSearch =
-      !search ||
-      p.title.toLowerCase().includes(s) ||
-      p.prompt.toLowerCase().includes(s) ||
-      p.tags.some((tag) => tag.toLowerCase().includes(s)) ||
-      (p.companies && p.companies.some((c) => c.toLowerCase().includes(s)));
-    return matchesCategory && matchesCompany && matchesSearch;
-  });
+  const filteredProblems = problems
+    .filter((p) => {
+      const matchesCategory = !selectedCategory || p.category_id === selectedCategory;
+      const matchesCompany =
+        !selectedCompanyFilter ||
+        (p.companies && p.companies.some((c) => c.toLowerCase() === selectedCompanyFilter.toLowerCase()));
+      const s = search.toLowerCase();
+      const matchesSearch =
+        !search ||
+        p.title.toLowerCase().includes(s) ||
+        p.prompt.toLowerCase().includes(s) ||
+        (p.tags && p.tags.some((tag) => tag.toLowerCase().includes(s))) ||
+        (p.companies && p.companies.some((c) => c.toLowerCase().includes(s)));
+      return matchesCategory && matchesCompany && matchesSearch;
+    })
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
   const isAllVisibleSelected =
     filteredProblems.length > 0 && filteredProblems.every((p) => selectedProblemIds.has(p.id));
@@ -374,6 +598,9 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
     }
   };
 
+  const selectedCatObj = categories.find((c) => c.id === selectedCategory);
+  const isCurrentCategoryNote = selectedCategory ? !isProblemCategory(selectedCatObj?.slug) : false;
+
   return (
     <div className="problem-manager">
       {/* Controls & Filter Toolbar */}
@@ -405,11 +632,19 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
         </div>
 
         <div className="action-buttons">
-          <button className="secondary-action-btn" onClick={() => setShowCatModal(true)}>
-            <FolderPlus size={16} /> New Category
+          <button
+            className="secondary-action-btn"
+            onClick={() => {
+              setShowCatModal(true);
+              setCatError(null);
+              setCatSuccess(null);
+              setEditingCatId(null);
+            }}
+          >
+            <FolderCog size={16} /> Categories
           </button>
-          <button className="primary-action-btn" onClick={() => setShowAddModal(true)}>
-            <Plus size={16} /> Add Problem
+          <button className="primary-action-btn" onClick={handleOpenAddModal}>
+            <Plus size={16} /> {isCurrentCategoryNote ? "Add Note" : "Add Problem"}
           </button>
         </div>
       </div>
@@ -424,13 +659,20 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
         </button>
         {categories.map((c) => {
           const count = problems.filter((p) => p.category_id === c.id).length;
+          const theme = getCategoryTheme(c.slug || c.name);
+          const isSelected = selectedCategory === c.id;
           return (
             <button
               key={c.id}
-              className={`chip ${selectedCategory === c.id ? "active" : ""}`}
+              className={`chip ${isSelected ? "active" : ""}`}
+              style={isSelected ? undefined : { borderColor: theme.border }}
               onClick={() => onSelectCategory(c.id)}
             >
-              {c.name} ({count})
+              <span
+                className="cat-chip-dot"
+                style={{ backgroundColor: theme.color }}
+              />
+              {formatCategoryName(c.name)} ({count})
             </button>
           );
         })}
@@ -493,7 +735,7 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
           onClick={handleToggleSelectAll}
           title={isAllVisibleSelected ? "Deselect all visible problems" : "Select all visible problems"}
         >
-          {isAllVisibleSelected ? <CheckSquare size={15} /> : <Square size={15} />}
+          {isAllVisibleSelected ? <CheckSquare size={13.5} /> : <Square size={13.5} />}
           <span>{isAllVisibleSelected ? "Deselect All Visible" : "Select All Visible"}</span>
         </button>
         <span className="problem-list-count">
@@ -509,6 +751,11 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
           filteredProblems.map((problem) => {
             const isExpanded = expandedId === problem.id;
             const isSelected = selectedProblemIds.has(problem.id);
+            const catName = getCategoryName(problem.category_id);
+            const catSlug = getCategorySlug(problem.category_id);
+            const catTheme = getCategoryTheme(catSlug || catName);
+            const formattedCatName = formatCategoryName(catName);
+
             return (
               <div
                 key={problem.id}
@@ -524,9 +771,14 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
                       onClick={(e) => toggleProblemSelection(problem.id, e)}
                       title={isSelected ? "Deselect from deck" : "Select for deck"}
                     >
-                      {isSelected ? <CheckSquare size={16} /> : <Square size={16} />}
+                      {isSelected ? <CheckSquare size={14} /> : <Square size={14} />}
                     </button>
-                    <span className="problem-category-pill">{getCategoryName(problem.category_id)}</span>
+                    <span
+                      className="problem-category-pill"
+                      style={catTheme.style}
+                    >
+                      {formattedCatName}
+                    </span>
                     <h3 className="problem-title-text">{problem.title}</h3>
                   </div>
                   <div className="problem-row-actions">
@@ -535,17 +787,17 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
                       onClick={(e) => handleOpenEditModal(problem, e)}
                       title="Edit problem"
                     >
-                      <Pencil size={15} />
+                      <Pencil size={13} />
                     </button>
                     <button
                       className="icon-delete-btn"
                       onClick={(e) => handleDelete(problem.id, e)}
                       title="Delete problem"
                     >
-                      <Trash2 size={16} />
+                      <Trash2 size={13.5} />
                     </button>
                     <span className="expand-indicator">
-                      {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                      {isExpanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
                     </span>
                   </div>
                 </div>
@@ -555,31 +807,39 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
                   <div className="problem-expanded-details" onClick={(e) => e.stopPropagation()}>
                     <ProblemFlashcard
                       problem={problem}
-                      categoryName={getCategoryName(problem.category_id)}
+                      categoryName={formattedCatName}
+                      categorySlug={catSlug}
                       onReviewRecorded={onRefresh}
                     />
                     <div className="expanded-footer-meta">
-                      <div className="meta-group">
-                        <span className="meta-label">Companies:</span>
-                        <div className="meta-pills">
-                          {problem.companies && problem.companies.length > 0 ? (
-                            problem.companies.map((c, i) => (
-                              <span key={i} className="mini-company-pill">
-                                🏢 {c}
-                              </span>
-                            ))
-                          ) : (
-                            <span className="text-slate-500 italic text-xs">None listed</span>
-                          )}
+                      {isProblemCategory(getCategorySlug(problem.category_id)) ? (
+                        <div className="meta-group">
+                          <span className="meta-label">Companies:</span>
+                          <div className="meta-pills">
+                            {problem.companies && problem.companies.length > 0 ? (
+                              problem.companies.map((c, i) => (
+                                <span key={i} className="mini-company-pill">
+                                  🏢 {c}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-slate-500 italic text-xs">None listed</span>
+                            )}
+                          </div>
                         </div>
-                      </div>
+                      ) : (
+                        <div className="meta-group">
+                          <span className="meta-label">Type:</span>
+                          <span className="badge category-badge note-type-badge">📝 Knowledge Note</span>
+                        </div>
+                      )}
                       <button
                         type="button"
                         className="edit-details-btn"
                         onClick={(e) => handleOpenEditModal(problem, e)}
-                        title="Edit problem details"
+                        title={isProblemCategory(getCategorySlug(problem.category_id)) ? "Edit problem details" : "Edit note details"}
                       >
-                        <Pencil size={13} /> Edit Problem
+                        <Pencil size={13} /> {isProblemCategory(getCategorySlug(problem.category_id)) ? "Edit Problem" : "Edit Note"}
                       </button>
                     </div>
                   </div>
@@ -590,12 +850,30 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
         )}
       </div>
 
-      {/* Add Problem Modal */}
+      {/* Add Problem / Note Modal */}
       {showAddModal && (
         <div className="modal-overlay">
           <div className="modal-content modal-content-wide" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>Add New Problem</h2>
+              <div className="modal-title-with-pill">
+                <h2>{formMode === "note" ? "Add New Note" : "Add New Problem"}</h2>
+                <div className="mode-toggle-pill-group">
+                  <button
+                    type="button"
+                    className={`mode-toggle-pill ${formMode === "note" ? "active" : ""}`}
+                    onClick={() => setFormMode("note")}
+                  >
+                    📝 Note
+                  </button>
+                  <button
+                    type="button"
+                    className={`mode-toggle-pill ${formMode === "problem" ? "active" : ""}`}
+                    onClick={() => setFormMode("problem")}
+                  >
+                    💻 Interview Problem
+                  </button>
+                </div>
+              </div>
               <button
                 type="button"
                 className="modal-close-icon-btn"
@@ -606,109 +884,195 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
               </button>
             </div>
             <form onSubmit={handleCreateProblem}>
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Category:</label>
-                  <select
-                    value={formCatId}
-                    onChange={(e) => setFormCatId(e.target.value)}
-                    required
-                  >
-                    {categories.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              {formMode === "note" ? (
+                /* Note Mode: Idea 1 (Prompt + Notes) - Zero companies, Zero tags, Zero separate title */
+                <>
+                  <div className="form-group">
+                    <label>Category:</label>
+                    <select
+                      value={activeFormCatId}
+                      onChange={(e) => handleFormCatChange(e.target.value)}
+                      required
+                    >
+                      {categories.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-                <div className="form-group">
-                  <label>Problem Title:</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Dynamic Programming: 0/1 Knapsack"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    required
-                  />
-                </div>
-              </div>
+                  <div className="form-group">
+                    <label>Recall Prompt / Concept Question:</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Difference between __new__ and __init__ in Python?"
+                      value={prompt}
+                      onChange={(e) => setPrompt(e.target.value)}
+                      required
+                      autoFocus
+                    />
+                    <span className="field-hint-text">
+                      This question appears on the front of your flashcard during review.
+                    </span>
+                  </div>
 
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Associated Companies (comma-separated):</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Google, Meta, Amazon"
-                    value={companiesStr}
-                    onChange={(e) => setCompaniesStr(e.target.value)}
-                  />
-                </div>
+                  <div className="form-group">
+                    <label>Note / Key Takeaways & Gotchas:</label>
+                    <textarea
+                      className="notes-editor-textarea"
+                      rows={11}
+                      placeholder="The explanation, code snippet, core insight, or takeaway... (Tab & Enter auto-indent supported)"
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      onKeyDown={createIndentKeyDownHandler(setNotes)}
+                      required
+                    />
+                  </div>
 
-                <div className="form-group">
-                  <label>Tags / Subtopics (comma-separated):</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. dp, knapsack, optimization"
-                    value={tagsStr}
-                    onChange={(e) => setTagsStr(e.target.value)}
-                  />
-                </div>
-              </div>
+                  <div className="modal-actions">
+                    <button
+                      type="button"
+                      className="secondary-action-btn"
+                      onClick={() => setShowAddModal(false)}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="primary-action-btn"
+                      disabled={isSubmitting}
+                    >
+                      Save Note
+                    </button>
+                  </div>
+                </>
+              ) : (
+                /* Problem Mode: Full Interview Metadata */
+                <>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Category:</label>
+                      <select
+                        value={activeFormCatId}
+                        onChange={(e) => handleFormCatChange(e.target.value)}
+                        required
+                      >
+                        {categories.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
 
-              <div className="form-group">
-                <label>Hints (Problem Prompt & Constraints):</label>
-                <textarea
-                  className="prompt-editor-textarea"
-                  rows={4}
-                  placeholder="The question and constraints you challenge yourself to recall when looking at the problem title... (Tab supported)"
-                  value={prompt}
-                  onChange={(e) => setPrompt(e.target.value)}
-                  onKeyDown={createIndentKeyDownHandler(setPrompt)}
-                  required
-                />
-              </div>
+                    <div className="form-group">
+                      <label>Problem Title:</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Dynamic Programming: 0/1 Knapsack"
+                        value={title}
+                        onChange={(e) => setTitle(e.target.value)}
+                        required
+                      />
+                    </div>
+                  </div>
 
-              <div className="form-group">
-                <label>Notes (Solution & Implementation):</label>
-                <textarea
-                  className="notes-editor-textarea"
-                  rows={12}
-                  placeholder="The key insights, formula, recurrence relation, or Python implementation... (Tab supported)"
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  onKeyDown={createIndentKeyDownHandler(setNotes)}
-                  required
-                />
-              </div>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Associated Companies (comma-separated):</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Google, Meta, Amazon"
+                        value={companiesStr}
+                        onChange={(e) => setCompaniesStr(e.target.value)}
+                      />
+                    </div>
 
-              <div className="modal-actions">
-                <button
-                  type="button"
-                  className="secondary-action-btn"
-                  onClick={() => setShowAddModal(false)}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="primary-action-btn"
-                  disabled={isSubmitting}
-                >
-                  Save Problem
-                </button>
-              </div>
+                    <div className="form-group">
+                      <label>Tags / Subtopics (comma-separated):</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. dp, knapsack, optimization"
+                        value={tagsStr}
+                        onChange={(e) => setTagsStr(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="form-group">
+                    <label>Hints (Problem Prompt & Constraints):</label>
+                    <textarea
+                      className="prompt-editor-textarea"
+                      rows={4}
+                      placeholder="The question and constraints you challenge yourself to recall when looking at the problem title... (Tab supported)"
+                      value={prompt}
+                      onChange={(e) => setPrompt(e.target.value)}
+                      onKeyDown={createIndentKeyDownHandler(setPrompt)}
+                      required
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>Notes (Solution & Implementation):</label>
+                    <textarea
+                      className="notes-editor-textarea"
+                      rows={12}
+                      placeholder="The key insights, formula, recurrence relation, or Python implementation... (Tab supported)"
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      onKeyDown={createIndentKeyDownHandler(setNotes)}
+                      required
+                    />
+                  </div>
+
+                  <div className="modal-actions">
+                    <button
+                      type="button"
+                      className="secondary-action-btn"
+                      onClick={() => setShowAddModal(false)}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="primary-action-btn"
+                      disabled={isSubmitting}
+                    >
+                      Save Problem
+                    </button>
+                  </div>
+                </>
+              )}
             </form>
           </div>
         </div>
       )}
 
-      {/* Edit Problem Modal */}
+      {/* Edit Problem / Note Modal */}
       {showEditModal && editingProblem && (
         <div className="modal-overlay">
           <div className="modal-content modal-content-wide" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>Edit Problem</h2>
+              <div className="modal-title-with-pill">
+                <h2>{editFormMode === "note" ? "Edit Note" : "Edit Problem"}</h2>
+                <div className="mode-toggle-pill-group">
+                  <button
+                    type="button"
+                    className={`mode-toggle-pill ${editFormMode === "note" ? "active" : ""}`}
+                    onClick={() => setEditFormMode("note")}
+                  >
+                    📝 Note
+                  </button>
+                  <button
+                    type="button"
+                    className={`mode-toggle-pill ${editFormMode === "problem" ? "active" : ""}`}
+                    onClick={() => setEditFormMode("problem")}
+                  >
+                    💻 Interview Problem
+                  </button>
+                </div>
+              </div>
               <button
                 type="button"
                 className="modal-close-icon-btn"
@@ -719,164 +1083,410 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
               </button>
             </div>
             <form onSubmit={handleUpdateProblem}>
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Category:</label>
-                  <select
-                    value={editCatId}
-                    onChange={(e) => setEditCatId(e.target.value)}
-                    required
-                  >
-                    {categories.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              {editFormMode === "note" ? (
+                /* Edit Note Mode */
+                <>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Category:</label>
+                      <select
+                        value={editCatId}
+                        onChange={(e) => handleEditCatChange(e.target.value)}
+                        required
+                      >
+                        {categories.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
 
-                <div className="form-group">
-                  <label>Problem Title:</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Dynamic Programming: 0/1 Knapsack"
-                    value={editTitle}
-                    onChange={(e) => setEditTitle(e.target.value)}
-                    required
-                  />
-                </div>
-              </div>
+                    <div className="form-group">
+                      <label>Review Cadence & Priority:</label>
+                      <select
+                        value={editCadence}
+                        onChange={(e) => setEditCadence(e.target.value)}
+                      >
+                        <option value="daily">🔄 Drill Soon (Intra-day review ~4h)</option>
+                        <option value="intra_week">📅 Mid-Week (Consolidation 2–3d)</option>
+                        <option value="weekly">🗓️ Next Week (Standard 7d)</option>
+                        <option value="monthly">⏭️ Skip / Park (Parked for 21d)</option>
+                      </select>
+                    </div>
+                  </div>
 
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Associated Companies (comma-separated):</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Google, Meta, Amazon"
-                    value={editCompaniesStr}
-                    onChange={(e) => setEditCompaniesStr(e.target.value)}
-                  />
-                </div>
+                  <div className="form-group">
+                    <label>Recall Prompt / Concept Question:</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Difference between __new__ and __init__ in Python?"
+                      value={editPrompt}
+                      onChange={(e) => setEditPrompt(e.target.value)}
+                      required
+                    />
+                    <span className="field-hint-text">
+                      This question appears on the front of your flashcard during review.
+                    </span>
+                  </div>
 
-                <div className="form-group">
-                  <label>Tags / Subtopics (comma-separated):</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. dp, knapsack, optimization"
-                    value={editTagsStr}
-                    onChange={(e) => setEditTagsStr(e.target.value)}
-                  />
-                </div>
-              </div>
+                  <div className="form-group">
+                    <label>Note / Key Takeaways & Gotchas:</label>
+                    <textarea
+                      className="notes-editor-textarea"
+                      rows={11}
+                      placeholder="The explanation, code snippet, core insight, or takeaway... (Tab & Enter auto-indent supported)"
+                      value={editNotes}
+                      onChange={(e) => setEditNotes(e.target.value)}
+                      onKeyDown={createIndentKeyDownHandler(setEditNotes)}
+                      required
+                    />
+                  </div>
 
-              <div className="form-group">
-                <label>Review Cadence & Priority:</label>
-                <select
-                  value={editCadence}
-                  onChange={(e) => setEditCadence(e.target.value)}
-                >
-                  <option value="daily">🔄 Drill Soon (Intra-day review ~4h)</option>
-                  <option value="intra_week">📅 Mid-Week (Consolidation 2–3d)</option>
-                  <option value="weekly">🗓️ Next Week (Standard 7d)</option>
-                  <option value="monthly">⏭️ Skip / Park (Parked for 21d)</option>
-                </select>
-              </div>
+                  <div className="modal-actions">
+                    <button
+                      type="button"
+                      className="secondary-action-btn"
+                      onClick={() => setShowEditModal(false)}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="primary-action-btn"
+                      disabled={isUpdating}
+                    >
+                      {isUpdating ? "Saving..." : "Save Note"}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                /* Edit Problem Mode */
+                <>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Category:</label>
+                      <select
+                        value={editCatId}
+                        onChange={(e) => handleEditCatChange(e.target.value)}
+                        required
+                      >
+                        {categories.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
 
-              <div className="form-group">
-                <label>Hints (Problem Prompt & Constraints):</label>
-                <textarea
-                  className="prompt-editor-textarea"
-                  rows={4}
-                  placeholder="The question and constraints... (Tab supported)"
-                  value={editPrompt}
-                  onChange={(e) => setEditPrompt(e.target.value)}
-                  onKeyDown={createIndentKeyDownHandler(setEditPrompt)}
-                  required
-                />
-              </div>
+                    <div className="form-group">
+                      <label>Problem Title:</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Dynamic Programming: 0/1 Knapsack"
+                        value={editTitle}
+                        onChange={(e) => setEditTitle(e.target.value)}
+                        required
+                      />
+                    </div>
+                  </div>
 
-              <div className="form-group">
-                <label>Notes (Solution & Implementation):</label>
-                <textarea
-                  className="notes-editor-textarea"
-                  rows={12}
-                  placeholder="The key insights, formula, recurrence relation, or Python implementation... (Tab supported)"
-                  value={editNotes}
-                  onChange={(e) => setEditNotes(e.target.value)}
-                  onKeyDown={createIndentKeyDownHandler(setEditNotes)}
-                  required
-                />
-              </div>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Associated Companies (comma-separated):</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Google, Meta, Amazon"
+                        value={editCompaniesStr}
+                        onChange={(e) => setEditCompaniesStr(e.target.value)}
+                      />
+                    </div>
 
-              <div className="modal-actions">
-                <button
-                  type="button"
-                  className="secondary-action-btn"
-                  onClick={() => setShowEditModal(false)}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="primary-action-btn"
-                  disabled={isUpdating}
-                >
-                  {isUpdating ? "Saving..." : "Save Changes"}
-                </button>
-              </div>
+                    <div className="form-group">
+                      <label>Tags / Subtopics (comma-separated):</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. dp, knapsack, optimization"
+                        value={editTagsStr}
+                        onChange={(e) => setEditTagsStr(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="form-group">
+                    <label>Review Cadence & Priority:</label>
+                    <select
+                      value={editCadence}
+                      onChange={(e) => setEditCadence(e.target.value)}
+                    >
+                      <option value="daily">🔄 Drill Soon (Intra-day review ~4h)</option>
+                      <option value="intra_week">📅 Mid-Week (Consolidation 2–3d)</option>
+                      <option value="weekly">🗓️ Next Week (Standard 7d)</option>
+                      <option value="monthly">⏭️ Skip / Park (Parked for 21d)</option>
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label>Hints (Problem Prompt & Constraints):</label>
+                    <textarea
+                      className="prompt-editor-textarea"
+                      rows={4}
+                      placeholder="The question and constraints... (Tab supported)"
+                      value={editPrompt}
+                      onChange={(e) => setEditPrompt(e.target.value)}
+                      onKeyDown={createIndentKeyDownHandler(setEditPrompt)}
+                      required
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>Notes (Solution & Implementation):</label>
+                    <textarea
+                      className="notes-editor-textarea"
+                      rows={12}
+                      placeholder="The key insights, formula, recurrence relation, or Python implementation... (Tab supported)"
+                      value={editNotes}
+                      onChange={(e) => setEditNotes(e.target.value)}
+                      onKeyDown={createIndentKeyDownHandler(setEditNotes)}
+                      required
+                    />
+                  </div>
+
+                  <div className="modal-actions">
+                    <button
+                      type="button"
+                      className="secondary-action-btn"
+                      onClick={() => setShowEditModal(false)}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="primary-action-btn"
+                      disabled={isUpdating}
+                    >
+                      {isUpdating ? "Saving..." : "Save Changes"}
+                    </button>
+                  </div>
+                </>
+              )}
             </form>
           </div>
         </div>
       )}
 
-      {/* New Category Modal */}
+      {/* Category Manager Modal */}
       {showCatModal && (
-        <div className="modal-overlay" onClick={() => setShowCatModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h2>New Category</h2>
-            <form onSubmit={handleCreateCat}>
-              <div className="form-group">
-                <label>Slug (URL key):</label>
-                <input
-                  type="text"
-                  placeholder="e.g. networking"
-                  value={newCatSlug}
-                  onChange={(e) => setNewCatSlug(e.target.value)}
-                  required
-                />
+        <div
+          className="modal-overlay"
+          onClick={handleCloseCatModal}
+        >
+          <div
+            className="modal-content modal-content-wide category-manager-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-header">
+              <div className="cat-modal-header-title">
+                <FolderCog size={22} className="cat-modal-header-icon" />
+                <h2>Category Manager</h2>
               </div>
-              <div className="form-group">
-                <label>Category Display Name:</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Networking & Infra"
-                  value={newCatName}
-                  onChange={(e) => setNewCatName(e.target.value)}
-                  required
-                />
+              <button
+                type="button"
+                className="modal-close-icon-btn"
+                onClick={handleCloseCatModal}
+                title="Close"
+              >
+                ✕
+              </button>
+            </div>
+
+            {catError && (
+              <div className="cat-alert cat-alert-error">
+                <AlertCircle size={16} />
+                <span>{catError}</span>
               </div>
-              <div className="form-group">
-                <label>Description (Optional):</label>
-                <input
-                  type="text"
-                  placeholder="e.g. TCP, UDP, load balancers, DNS"
-                  value={newCatDesc}
-                  onChange={(e) => setNewCatDesc(e.target.value)}
-                />
+            )}
+            {catSuccess && (
+              <div className="cat-alert cat-alert-success">
+                <Check size={16} />
+                <span>{catSuccess}</span>
               </div>
-              <div className="modal-actions">
-                <button
-                  type="button"
-                  className="secondary-action-btn"
-                  onClick={() => setShowCatModal(false)}
-                >
-                  Cancel
-                </button>
-                <button type="submit" className="primary-action-btn">
-                  Create Category
-                </button>
+            )}
+
+            <div className="cat-manager-grid">
+              {/* Section 1: Add New Category */}
+              <div className="cat-manager-section cat-add-section">
+                <h3>Add New Category</h3>
+                <form onSubmit={handleCreateCat}>
+                  <div className="form-group">
+                    <label>Category Name *</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Distributed Systems"
+                      value={newCatName}
+                      onChange={(e) => handleNewCatNameChange(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>
+                      Slug (URL key) *
+                      <span className="field-hint">Auto or custom key</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. distributed-systems"
+                      value={newCatSlug}
+                      onChange={(e) => handleNewCatSlugChange(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Description (Optional)</label>
+                    <textarea
+                      placeholder="e.g. Consensus, Raft, Paxos, partition tolerance, replication"
+                      value={newCatDesc}
+                      onChange={(e) => setNewCatDesc(e.target.value)}
+                      rows={2}
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    className="primary-action-btn cat-submit-btn"
+                    disabled={isCatSubmitting || !newCatName.trim() || !newCatSlug.trim()}
+                  >
+                    <Plus size={15} />
+                    {isCatSubmitting ? "Creating..." : "Create Category"}
+                  </button>
+                </form>
               </div>
-            </form>
+
+              {/* Section 2: Existing Categories List */}
+              <div className="cat-manager-section cat-list-section">
+                <h3>Existing Categories ({categories.length})</h3>
+                <div className="cat-cards-list">
+                  {categories.length === 0 ? (
+                    <div className="cat-empty-notice">No categories found. Create your first category above.</div>
+                  ) : (
+                    categories.map((c) => {
+                      const count = problems.filter((p) => p.category_id === c.id).length;
+                      const isEditing = editingCatId === c.id;
+
+                      if (isEditing) {
+                        return (
+                          <div key={c.id} className="cat-item-card cat-item-editing">
+                            <div className="cat-edit-fields">
+                              <div className="cat-edit-row">
+                                <div className="form-group" style={{ flex: 1 }}>
+                                  <label>Name</label>
+                                  <input
+                                    type="text"
+                                    value={editCatName}
+                                    onChange={(e) => setEditCatName(e.target.value)}
+                                    placeholder="Category Name"
+                                    autoFocus
+                                  />
+                                </div>
+                                <div className="form-group" style={{ flex: 1 }}>
+                                  <label>Slug</label>
+                                  <input
+                                    type="text"
+                                    value={editCatSlug}
+                                    onChange={(e) => setEditCatSlug(e.target.value)}
+                                    placeholder="slug-key"
+                                  />
+                                </div>
+                              </div>
+                              <div className="form-group">
+                                <label>Description</label>
+                                <input
+                                  type="text"
+                                  value={editCatDesc}
+                                  onChange={(e) => setEditCatDesc(e.target.value)}
+                                  placeholder="Brief description..."
+                                />
+                              </div>
+                            </div>
+                            <div className="cat-edit-actions">
+                              <button
+                                type="button"
+                                className="cat-btn-cancel"
+                                onClick={handleCancelEditCat}
+                                disabled={isCatUpdating}
+                              >
+                                <X size={14} /> Cancel
+                              </button>
+                              <button
+                                type="button"
+                                className="cat-btn-save"
+                                onClick={() => handleSaveEditCat(c.id)}
+                                disabled={isCatUpdating || !editCatName.trim() || !editCatSlug.trim()}
+                              >
+                                <Check size={14} /> {isCatUpdating ? "Saving..." : "Save"}
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div key={c.id} className="cat-item-card">
+                          <div className="cat-item-info">
+                            <div className="cat-item-header">
+                              <span className="cat-item-name">{c.name}</span>
+                              <code className="cat-item-slug">{c.slug}</code>
+                              <span
+                                className={`cat-problem-count-badge ${count > 0 ? "has-problems" : "empty"}`}
+                              >
+                                {count} {count === 1 ? "problem" : "problems"}
+                              </span>
+                            </div>
+                            {c.description ? (
+                              <p className="cat-item-desc">{c.description}</p>
+                            ) : (
+                              <p className="cat-item-desc empty">No description provided</p>
+                            )}
+                          </div>
+                          <div className="cat-item-actions">
+                            <button
+                              type="button"
+                              className="cat-action-icon-btn edit"
+                              onClick={() => handleStartEditCat(c)}
+                              title="Edit Category"
+                            >
+                              <Pencil size={15} />
+                            </button>
+                            <button
+                              type="button"
+                              className={`cat-action-icon-btn delete ${count > 0 ? "blocked" : ""}`}
+                              onClick={() => handleDeleteCat(c, count)}
+                              disabled={deletingCatId === c.id}
+                              title={
+                                count > 0
+                                  ? `Cannot delete: category has ${count} problem(s)`
+                                  : "Delete category"
+                              }
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="modal-actions" style={{ marginTop: 24 }}>
+              <button
+                type="button"
+                className="secondary-action-btn"
+                onClick={handleCloseCatModal}
+              >
+                Done
+              </button>
+            </div>
           </div>
         </div>
       )}

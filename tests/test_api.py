@@ -217,3 +217,80 @@ def test_problem_cadence_update_and_scheduling(client: TestClient):
     assert park_data["next_review_due"] is not None
 
 
+def test_category_full_crud_and_safety_checks(client: TestClient):
+    # 1. Create
+    create_res = client.post("/api/categories/", json={
+        "slug": "infra-ops",
+        "name": "Infra & Ops",
+        "description": "Infrastructure operations",
+    })
+    assert create_res.status_code == 201
+    cat_id = create_res.json()["id"]
+
+    # 2. Read single
+    get_res = client.get(f"/api/categories/{cat_id}")
+    assert get_res.status_code == 200
+    assert get_res.json()["slug"] == "infra-ops"
+    assert get_res.json()["name"] == "Infra & Ops"
+
+    # 3. Update
+    update_res = client.put(f"/api/categories/{cat_id}", json={
+        "name": "DevOps & Cloud",
+        "description": "Updated description",
+    })
+    assert update_res.status_code == 200
+    assert update_res.json()["name"] == "DevOps & Cloud"
+    assert update_res.json()["description"] == "Updated description"
+
+    # Test clearing description
+    clear_desc_res = client.put(f"/api/categories/{cat_id}", json={
+        "description": "   ",
+    })
+    assert clear_desc_res.status_code == 200
+    assert clear_desc_res.json()["description"] is None
+
+    # Test slug collision validation
+    client.post("/api/categories/", json={
+        "slug": "sre-reliability",
+        "name": "SRE",
+    })
+    collision_res = client.put(f"/api/categories/{cat_id}", json={
+        "slug": "sre-reliability",
+    })
+    assert collision_res.status_code == 400
+    assert "slug already in use" in collision_res.json()["detail"].lower()
+
+    # Test empty name/slug validation
+    empty_name_res = client.put(f"/api/categories/{cat_id}", json={
+        "name": "   ",
+    })
+    assert empty_name_res.status_code == 400
+
+    # 4. Attach problem to verify delete constraint safety
+    prob_res = client.post("/api/problems/", json={
+        "category_id": cat_id,
+        "title": "Kubernetes Pod Lifecycle",
+        "prompt": "Explain pod phase transitions",
+        "notes": "Pending -> Running -> Succeeded/Failed",
+    })
+    assert prob_res.status_code == 201
+    prob_id = prob_res.json()["id"]
+
+    # Attempt delete while problem attached -> expect 400 Bad Request
+    del_blocked = client.delete(f"/api/categories/{cat_id}")
+    assert del_blocked.status_code == 400
+    assert "Cannot delete category" in del_blocked.json()["detail"]
+
+    # Delete problem first, then delete category
+    del_prob = client.delete(f"/api/problems/{prob_id}")
+    assert del_prob.status_code == 204
+
+    del_success = client.delete(f"/api/categories/{cat_id}")
+    assert del_success.status_code == 204
+
+    # Verify category is gone
+    get_gone = client.get(f"/api/categories/{cat_id}")
+    assert get_gone.status_code == 404
+
+
+

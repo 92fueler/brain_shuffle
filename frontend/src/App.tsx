@@ -54,69 +54,74 @@ export function App() {
   };
 
   return (
-    <div className="app-container">
+    <div className="app-shell">
       <header className="app-header">
-        <div className="header-brand">
-          <div className="brand-icon">
-            <Brain size={28} />
+        <div className="app-header-inner">
+          <div className="header-brand">
+            <div className="brand-icon">
+              <Brain size={24} />
+            </div>
+            <div className="brand-text">
+              <h1>Brain Shuffle</h1>
+              <p className="tagline">Learn anything • Shuffle anytime • Remember longer</p>
+            </div>
           </div>
-          <div className="brand-text">
-            <h1>Brain Shuffle</h1>
-            <p className="tagline">Learn anything • Shuffle anytime • Remember longer</p>
-          </div>
-        </div>
 
-        <nav className="nav-tabs">
-          <button
-            className={`nav-tab ${activeTab === "shuffle" ? "active" : ""}`}
-            onClick={() => setActiveTab("shuffle")}
-          >
-            <Shuffle size={18} />
-            <span>Shuffle Test</span>
-          </button>
-          <button
-            className={`nav-tab ${activeTab === "problems" ? "active" : ""}`}
-            onClick={() => setActiveTab("problems")}
-          >
-            <BookOpen size={18} />
-            <span>Problems ({problems.length})</span>
-          </button>
-          <button
-            className={`nav-tab ${activeTab === "backup" ? "active" : ""}`}
-            onClick={() => setActiveTab("backup")}
-          >
-            <Database size={18} />
-            <span>Backup & Recovery</span>
-          </button>
-        </nav>
+          <nav className="nav-tabs">
+            <button
+              className={`nav-tab ${activeTab === "shuffle" ? "active" : ""}`}
+              onClick={() => setActiveTab("shuffle")}
+            >
+              <Shuffle size={16} />
+              <span>Shuffle Test</span>
+            </button>
+            <button
+              className={`nav-tab ${activeTab === "problems" ? "active" : ""}`}
+              onClick={() => setActiveTab("problems")}
+            >
+              <BookOpen size={16} />
+              <span>Problems ({problems.length})</span>
+            </button>
+            <button
+              className={`nav-tab ${activeTab === "backup" ? "active" : ""}`}
+              onClick={() => setActiveTab("backup")}
+            >
+              <Database size={16} />
+              <span>Backup & Recovery</span>
+            </button>
+          </nav>
+        </div>
       </header>
 
       <main className="app-main">
-        {activeTab === "shuffle" && (
-          <ShuffleView
-            categories={categories}
-            companies={companies}
-            reviewLists={reviewLists}
-            activeReviewList={activeReviewList}
-            onClearReviewList={() => setActiveReviewList(null)}
-            onRefreshReviewLists={refreshData}
-          />
-        )}
+        <div className="app-main-container">
+          {activeTab === "shuffle" && (
+            <ShuffleView
+              categories={categories}
+              companies={companies}
+              allProblems={problems}
+              reviewLists={reviewLists}
+              activeReviewList={activeReviewList}
+              onClearReviewList={() => setActiveReviewList(null)}
+              onRefreshReviewLists={refreshData}
+            />
+          )}
 
-        {activeTab === "problems" && (
-          <ProblemManager
-            categories={categories}
-            problems={problems}
-            onRefresh={refreshData}
-            selectedCategory={selectedCategory}
-            onSelectCategory={setSelectedCategory}
-            onStartReviewListShuffle={handleStartReviewListShuffle}
-          />
-        )}
+          {activeTab === "problems" && (
+            <ProblemManager
+              categories={categories}
+              problems={problems}
+              onRefresh={refreshData}
+              selectedCategory={selectedCategory}
+              onSelectCategory={setSelectedCategory}
+              onStartReviewListShuffle={handleStartReviewListShuffle}
+            />
+          )}
 
-        {activeTab === "backup" && (
-          <BackupManager onRefresh={refreshData} />
-        )}
+          {activeTab === "backup" && (
+            <BackupManager onRefresh={refreshData} />
+          )}
+        </div>
       </main>
     </div>
   );
