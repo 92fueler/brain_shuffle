@@ -62,7 +62,7 @@ export function App() {
               <Brain size={24} />
             </div>
             <div className="brand-text">
-              <h1>Brain Shuffle</h1>
+              <h1>BrainShuffle</h1>
               <p className="tagline">Learn anything • Shuffle anytime • Remember longer</p>
             </div>
           </div>

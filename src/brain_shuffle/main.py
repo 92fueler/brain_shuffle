@@ -4,7 +4,7 @@ from brain_shuffle.api import api_router
 from brain_shuffle.config import settings
 
 app = FastAPI(
-    title="Brain Shuffle API",
+    title="BrainShuffle API",
     description="Knowledge retention, active recall, and problem shuffle engine",
     version="0.1.0",
 )

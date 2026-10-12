@@ -7,7 +7,7 @@ from brain_shuffle.models.problem import Problem
 from brain_shuffle.models.review_list import ReviewList, ReviewListProblemLink
 from brain_shuffle.services.backup_service import BackupService
 
-cli = typer.Typer(help="Brain Shuffle CLI utilities for database operations and serialization backups.")
+cli = typer.Typer(help="BrainShuffle CLI utilities for database operations and serialization backups.")
 
 
 @cli.command()

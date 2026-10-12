@@ -1,6 +1,6 @@
-# Brain Shuffle Frontend
+# BrainShuffle Frontend
 
-Single-page web interface for Brain Shuffle, built with React, TypeScript, and Vite.
+Single-page web interface for BrainShuffle, built with React, TypeScript, and Vite.
 
 ## 1) Overview
 

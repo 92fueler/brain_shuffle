@@ -1,8 +1,8 @@
-# Brain Shuffle Architecture & Design
+# BrainShuffle Architecture & Design
 
 ## 1) Vision & Cognitive Foundation
 
-Brain Shuffle is a knowledge retention and active recall platform engineered for software engineers and technical practitioners preparing for technical interviews and domain mastery across computer science and artificial intelligence (`coding`, `system_design`, `python`, `llm`, `vlm`).
+BrainShuffle is a knowledge retention and active recall platform engineered for software engineers and technical practitioners preparing for technical interviews and domain mastery across computer science and artificial intelligence (`coding`, `system_design`, `python`, `llm`, `vlm`).
 
 ### The Limitations of Traditional Spaced Repetition
 Traditional spaced repetition software (such as Anki or SuperMemo) was formulated around discrete flashcards (vocabulary, historical facts, medical terms). Applied to software engineering, this paradigm exhibits several structural shortcomings:

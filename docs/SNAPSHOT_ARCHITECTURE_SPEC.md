@@ -2,7 +2,7 @@
 
 ## 1) Overview & Objectives
 
-This specification defines the native snapshot and automated recovery architecture for Brain Shuffle. The design replaces manual client-side JSON export/import workflows with an in-engine binary snapshot subsystem using SQLite's atomic `VACUUM INTO` command.
+This specification defines the native snapshot and automated recovery architecture for BrainShuffle. The design replaces manual client-side JSON export/import workflows with an in-engine binary snapshot subsystem using SQLite's atomic `VACUUM INTO` command.
 
 The subsystem achieves four technical objectives:
 1. **Zero-Overhead Serialization**: Eliminates $O(N)$ JSON serialization and row-by-row parsing overhead by leveraging native database page compaction.

@@ -1,4 +1,4 @@
-# Brain Shuffle
+# BrainShuffle
 
 Knowledge retention and active recall platform designed for randomized problem testing, rolling intent-driven review cadences, in-flight company review decks, and multi-language code scratchpad testing.
 
@@ -6,7 +6,7 @@ Full architecture specifications are documented in [docs/DESIGN.md](docs/DESIGN.
 
 ## 1) Overview
 
-Brain Shuffle provides an active recall loop for technical problems across domain categories (`coding`, `system_design`, `llm`, `vlm`). Problems include titles, active recall prompts, hidden solutions/reference notes, subtopic tags, and company associations. Tests present cards with the problem title and an embedded multi-language code scratchpad, prompting recall before revealing hints and reference notes.
+BrainShuffle provides an active recall loop for technical problems across domain categories (`coding`, `system_design`, `llm`, `vlm`). Problems include titles, active recall prompts, hidden solutions/reference notes, subtopic tags, and company associations. Tests present cards with the problem title and an embedded multi-language code scratchpad, prompting recall before revealing hints and reference notes.
 
 ```mermaid
 flowchart LR
