@@ -210,3 +210,65 @@ def test_backup_service_export_and_import():
         assert imported_again == 1
         logs = session.exec(select(ReviewLog).where(ReviewLog.problem_id == refreshed.id)).all()
         assert len(logs) == len(payload.categories[0].problems[0].review_logs)
+
+
+def test_topic_interleaving_prevents_clustering():
+    """Verify that _interleave_by_topic eliminates consecutive same-topic problems."""
+    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    SQLModel.metadata.create_all(engine)
+
+    with Session(engine) as session:
+        cat = Category(slug="coding", name="Coding")
+        session.add(cat)
+        session.commit()
+        session.refresh(cat)
+
+        # 3 fast/slow pointers, 2 two-pointers, 1 graph
+        p1 = Problem(category_id=cat.id, title="P1", prompt="", notes="", tags=["fast/slow pointers"])
+        p2 = Problem(category_id=cat.id, title="P2", prompt="", notes="", tags=["fast/slow pointers"])
+        p3 = Problem(category_id=cat.id, title="P3", prompt="", notes="", tags=["fast/slow pointers"])
+        p4 = Problem(category_id=cat.id, title="P4", prompt="", notes="", tags=["two pointers"])
+        p5 = Problem(category_id=cat.id, title="P5", prompt="", notes="", tags=["two pointers"])
+        p6 = Problem(category_id=cat.id, title="P6", prompt="", notes="", tags=["graph", "bfs"])
+
+        problems = [p1, p2, p3, p4, p5, p6]
+        interleaved = ShuffleEngine._interleave_by_topic(problems)
+
+        assert len(interleaved) == 6
+        # Verify no consecutive problems share exact tags
+        for i in range(len(interleaved) - 1):
+            curr_tags = set(interleaved[i].tags)
+            next_tags = set(interleaved[i + 1].tags)
+            assert len(curr_tags.intersection(next_tags)) == 0, (
+                f"Consecutive cards share topic: {interleaved[i].title} ({curr_tags}) -> "
+                f"{interleaved[i+1].title} ({next_tags})"
+            )
+
+
+def test_select_batch_topic_interleaving():
+    """Verify select_batch strictly interleaves alternating topics."""
+    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    SQLModel.metadata.create_all(engine)
+
+    with Session(engine) as session:
+        cat = Category(slug="coding", name="Coding")
+        session.add(cat)
+        session.commit()
+        session.refresh(cat)
+
+        # Create 3 DP and 3 Tree problems
+        for i in range(3):
+            session.add(Problem(category_id=cat.id, title=f"DP_{i}", prompt="", notes="", tags=["dynamic programming"]))
+            session.add(Problem(category_id=cat.id, title=f"Tree_{i}", prompt="", notes="", tags=["binary tree"]))
+        session.commit()
+
+        shuffle = ShuffleEngine(session)
+        batch = shuffle.select_batch(category_id=cat.id, limit=6, mode="pure_random")
+        assert len(batch) == 6
+
+        # Check strictly alternating pattern
+        for i in range(len(batch) - 1):
+            assert batch[i].tags[0] != batch[i + 1].tags[0], (
+                f"Consecutive cards have same topic at index {i}: {batch[i].title} and {batch[i+1].title}"
+            )
+

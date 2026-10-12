@@ -51,6 +51,7 @@ class ProblemBase(BaseModel):
     notes: str
     tags: List[str] = []
     companies: List[str] = []
+    cadence: str = "weekly"
 
     @field_validator("companies", mode="before")
     @classmethod

@@ -182,3 +182,38 @@ def test_problem_update_endpoint(client: TestClient):
     assert get_res.json()["category_id"] == cat2_id
     assert get_res.json()["title"] == "Updated Title"
 
+
+def test_problem_cadence_update_and_scheduling(client: TestClient):
+    cat_res = client.post("/api/categories/", json={
+        "slug": "sysdesign-cadence",
+        "name": "System Design Cadence",
+    })
+    cat_id = cat_res.json()["id"]
+
+    prob_res = client.post("/api/problems/", json={
+        "category_id": cat_id,
+        "title": "Rate Limiter",
+        "prompt": "Design a distributed rate limiter",
+        "notes": "Token bucket algorithm",
+    })
+    prob_id = prob_res.json()["id"]
+
+    # 1. Update to intra-day drill_soon
+    drill_res = client.put(f"/api/problems/{prob_id}", json={
+        "cadence": "daily"
+    })
+    assert drill_res.status_code == 200
+    drill_data = drill_res.json()
+    assert drill_data["cadence"] == "daily"
+    assert drill_data["next_review_due"] is not None
+
+    # 2. Update to park / monthly
+    park_res = client.put(f"/api/problems/{prob_id}", json={
+        "cadence": "monthly"
+    })
+    assert park_res.status_code == 200
+    park_data = park_res.json()
+    assert park_data["cadence"] == "monthly"
+    assert park_data["next_review_due"] is not None
+
+

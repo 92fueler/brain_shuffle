@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import List, Optional
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -6,7 +6,7 @@ from sqlmodel import Session, select
 from brain_shuffle.db import get_session
 from brain_shuffle.models.problem import Problem
 from brain_shuffle.schemas.problem import ProblemCreate, ProblemRead, ProblemReviewSubmission, ProblemUpdate
-from brain_shuffle.services.shuffle_engine import ShuffleEngine
+from brain_shuffle.services.shuffle_engine import ShuffleEngine, resolve_cadence_schedule
 
 router = APIRouter(prefix="/problems", tags=["problems"])
 
@@ -44,6 +44,9 @@ def list_problems(
 @router.post("/", response_model=ProblemRead, status_code=status.HTTP_201_CREATED)
 def create_problem(payload: ProblemCreate, session: Session = Depends(get_session)) -> Problem:
     problem = Problem.model_validate(payload)
+    if problem.cadence:
+        now = datetime.now(timezone.utc)
+        problem.cadence, problem.next_review_due = resolve_cadence_schedule(problem.cadence, now)
     session.add(problem)
     session.commit()
     session.refresh(problem)
@@ -68,9 +71,15 @@ def update_problem(
     if not problem:
         raise HTTPException(status_code=404, detail="Problem not found")
     update_data = payload.model_dump(exclude_unset=True)
+
+    now = datetime.now(timezone.utc)
+    if "cadence" in update_data and update_data["cadence"] is not None:
+        problem.cadence, problem.next_review_due = resolve_cadence_schedule(str(update_data["cadence"]), now)
+        del update_data["cadence"]
+
     for key, val in update_data.items():
         setattr(problem, key, val)
-    problem.updated_at = datetime.now(timezone.utc)
+    problem.updated_at = now
     session.add(problem)
     session.commit()
     session.refresh(problem)

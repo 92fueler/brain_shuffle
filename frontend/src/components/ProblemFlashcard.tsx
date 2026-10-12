@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import type { Problem, ReviewAction } from "../types";
 import { submitReview } from "../api";
 import { Tag, Lightbulb, CheckCircle2, ChevronLeft, ChevronRight } from "lucide-react";
@@ -33,21 +33,29 @@ export const ProblemFlashcard: React.FC<ProblemFlashcardProps> = ({
 }) => {
   const [showHints, setShowHints] = useState<boolean>(false);
   const [showSolution, setShowSolution] = useState<boolean>(false);
-  const [scratchpad, setScratchpad] = useState<string>("");
+  const [scratchpad, setScratchpad] = useState<string>(() => {
+    try {
+      return sessionStorage.getItem(`session_scratch_${problem.id}`) || "";
+    } catch {
+      return "";
+    }
+  });
   const [internalSubmitting, setInternalSubmitting] = useState<boolean>(false);
   const [reviewedMessage, setReviewedMessage] = useState<string | null>(null);
 
-  // Load temporary scratchpad content for this active session only (never saved to DB)
-  useEffect(() => {
+  // Synchronously reset and sync state if problem.id changes
+  const [trackedProblemId, setTrackedProblemId] = useState<string>(problem.id);
+  if (trackedProblemId !== problem.id) {
+    setTrackedProblemId(problem.id);
     try {
-      const saved = sessionStorage.getItem(`session_scratch_${problem.id}`) || "";
-      setScratchpad(saved);
+      setScratchpad(sessionStorage.getItem(`session_scratch_${problem.id}`) || "");
     } catch {
-      // Ignore storage access errors
+      setScratchpad("");
     }
     setShowHints(false);
     setShowSolution(false);
-  }, [problem.id]);
+    setReviewedMessage(null);
+  }
 
   const handleScratchpadChange = (val: string) => {
     setScratchpad(val);
@@ -103,15 +111,19 @@ export const ProblemFlashcard: React.FC<ProblemFlashcardProps> = ({
       <div className="card-top-bar">
         <div className="badge-row">
           {categoryName && <span className="badge category-badge">{categoryName}</span>}
-          {problem.review_count > 0 && (
-            <span className="badge stats-badge">
-              Tested {problem.review_count}x (Retention: {problem.retention_score.toFixed(1)})
-            </span>
-          )}
-          {problem.cadence && (
-            <span className="badge cadence-badge">
-              Cadence: {problem.cadence.replace("_", "-")}
-            </span>
+          {problem.review_count > 0 ? (
+            <>
+              <span className="badge stats-badge">
+                Tested {problem.review_count}x (Retention: {problem.retention_score.toFixed(1)})
+              </span>
+              {problem.cadence && (
+                <span className="badge cadence-badge">
+                  Cadence: {problem.cadence.replace("_", "-")}
+                </span>
+              )}
+            </>
+          ) : (
+            <span className="badge new-badge">Unreviewed</span>
           )}
         </div>
         {(counterText || onPrev || onNext) && (
@@ -203,62 +215,62 @@ export const ProblemFlashcard: React.FC<ProblemFlashcardProps> = ({
               ))}
             </div>
           )}
-
-          {/* Refined, Compact Rolling Cadence Action Bar */}
-          <div className="feedback-section">
-            <div className="feedback-prompt">Schedule next rolling review:</div>
-            {reviewedMessage && (
-              <div className="review-feedback-notice">{reviewedMessage}</div>
-            )}
-            <div className="cadence-action-row">
-              <button
-                type="button"
-                className="cadence-btn cadence-drill"
-                onClick={() => handleRatingClick("drill_soon")}
-                disabled={isBusy}
-                title="High priority intra-day review (~4h rolling window)"
-              >
-                <span className="cadence-icon">🔄</span>
-                <span className="cadence-label">Drill Soon</span>
-                <span className="cadence-chip">~4h</span>
-              </button>
-              <button
-                type="button"
-                className="cadence-btn cadence-intraweek"
-                onClick={() => handleRatingClick("intra_week")}
-                disabled={isBusy}
-                title="Consolidate mental model in 2 to 3 days (48h–72h)"
-              >
-                <span className="cadence-icon">📅</span>
-                <span className="cadence-label">Mid-Week</span>
-                <span className="cadence-chip">2–3d</span>
-              </button>
-              <button
-                type="button"
-                className="cadence-btn cadence-weekly"
-                onClick={() => handleRatingClick("weekly")}
-                disabled={isBusy}
-                title="Standard weekly rotation (7 days)"
-              >
-                <span className="cadence-icon">🗓️</span>
-                <span className="cadence-label">Next Week</span>
-                <span className="cadence-chip">7d</span>
-              </button>
-              <button
-                type="button"
-                className="cadence-btn cadence-park"
-                onClick={() => handleRatingClick("skip_park")}
-                disabled={isBusy}
-                title="Park and defer for 3 weeks (21 days)"
-              >
-                <span className="cadence-icon">⏭️</span>
-                <span className="cadence-label">Skip / Park</span>
-                <span className="cadence-chip">21d</span>
-              </button>
-            </div>
-          </div>
         </div>
       )}
+
+      {/* Refined, Always-Available Rolling Cadence Action Bar */}
+      <div className="feedback-section">
+        <div className="feedback-prompt">Review Cadence & Priority:</div>
+        {reviewedMessage && (
+          <div className="review-feedback-notice">{reviewedMessage}</div>
+        )}
+        <div className="cadence-action-row">
+          <button
+            type="button"
+            className="cadence-btn cadence-drill"
+            onClick={() => handleRatingClick("drill_soon")}
+            disabled={isBusy}
+            title="High priority intra-day review (~4h rolling window)"
+          >
+            <span className="cadence-icon">🔄</span>
+            <span className="cadence-label">Drill Soon</span>
+            <span className="cadence-chip">~4h</span>
+          </button>
+          <button
+            type="button"
+            className="cadence-btn cadence-intraweek"
+            onClick={() => handleRatingClick("intra_week")}
+            disabled={isBusy}
+            title="Consolidate mental model in 2 to 3 days (48h–72h)"
+          >
+            <span className="cadence-icon">📅</span>
+            <span className="cadence-label">Mid-Week</span>
+            <span className="cadence-chip">2–3d</span>
+          </button>
+          <button
+            type="button"
+            className="cadence-btn cadence-weekly"
+            onClick={() => handleRatingClick("weekly")}
+            disabled={isBusy}
+            title="Standard weekly rotation (7 days)"
+          >
+            <span className="cadence-icon">🗓️</span>
+            <span className="cadence-label">Next Week</span>
+            <span className="cadence-chip">7d</span>
+          </button>
+          <button
+            type="button"
+            className="cadence-btn cadence-park"
+            onClick={() => handleRatingClick("skip_park")}
+            disabled={isBusy}
+            title="Park and defer for 3 weeks (21 days)"
+          >
+            <span className="cadence-icon">⏭️</span>
+            <span className="cadence-label">Skip / Park</span>
+            <span className="cadence-chip">21d</span>
+          </button>
+        </div>
+      </div>
     </div>
   );
 };

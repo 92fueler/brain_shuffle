@@ -6,7 +6,7 @@ Brain Shuffle is a knowledge retention and active recall platform designed for t
 
 The system departs from rigid historical flashcard paradigms (such as fixed SuperMemo or Anki scheduling) by enforcing four core design principles:
 1. **Title-First Active Recall**: Problems are introduced exclusively by title. Retrieval prompts and reference solutions remain hidden, challenging the user to reconstruct solutions and architecture from the problem label alone.
-2. **Synchronized Code Scratchpad**: Users formulate code or pseudo-code directly in an embedded Python editor before revealing solutions, validating actual recall rather than passive recognition.
+2. **Multi-Language Code Scratchpad**: Users formulate code or pseudo-code directly in an embedded CodeMirror editor before revealing solutions, validating actual recall rather than passive recognition.
 3. **Rolling Intent-Driven Cadence**: Reviews are scheduled on continuous rolling-time horizons determined by forward-looking user intent (`drill_soon`, `intra_week`, `weekly`, `skip_park`) rather than retrospective difficulty scores.
 4. **Company-Targeted Study Decks**: Problems can be filtered and clustered by target companies, allowing on-demand compilation and persistence of focused review decks.
 
@@ -14,7 +14,8 @@ The system departs from rigid historical flashcard paradigms (such as fixed Supe
 flowchart LR
     A["Add / Ingest Problem\n(Category, Title, Hints, Notes, Tags, Companies)"] --> B["Storage Engine\n(PostgreSQL / SQLite)"]
     B --> C["Rolling Shuffle Engine\n(Intra-Day / Intra-Week / Weekly / Deferred)"]
-    C --> D["Active Recall Card\n(Title Only + Python Scratchpad)"]
+    D["Active Recall Card\n(Title Only + Code Scratchpad)"]
+    C --> D
     D --> E["Progressive Reveal\n(Hints & Notes)"]
     E --> F["Intent-Driven Cadence Action\n(Drill Soon / Mid-Week / Next Week / Park)"]
     F --> B
@@ -38,7 +39,7 @@ graph TD
         CompanyMgr["Company Lists Manager (Company Breakdown & Deck Builder)"]
         BackupMgr["Backup & Recovery (Native Snapshot & Portability Drawer)"]
         FlashcardComp["ProblemFlashcard (Card Lifecycle & Intent Rating)"]
-        ScratchpadComp["PythonScratchpad (Prism Syntax Highlighting & Indentation)"]
+        ScratchpadComp["PythonScratchpad (CodeMirror Multi-Language Engine)"]
 
         DecksHub -->|Launch Deck| ActiveRoom
         ActiveRoom --> FlashcardComp
@@ -73,11 +74,10 @@ graph TD
 
 ### Component Responsibilities
 - **Backend Service** ([src/brain_shuffle/](src/brain_shuffle/)): Python application managed via `uv`. Uses FastAPI for RESTful routing, SQLModel for ORM entity mapping, and Pydantic for input validation and serialization.
-- **Frontend Client** ([frontend/](frontend/)): Single-page application built with React 19, TypeScript, and Vite. Organized into four main tabs:
-  - **Shuffle Test** ([frontend/src/components/ShuffleView.tsx](frontend/src/components/ShuffleView.tsx)): Two-state review workflow transitioning between an entry Decks Hub (Company Loops, Coding Tracks, System Design Tracks, Custom Saved Decks) and an active testing room with bidirectional navigation.
-  - **Company Lists** ([frontend/src/components/CompanyReviewManager.tsx](frontend/src/components/CompanyReviewManager.tsx)): Aggregated company statistics and curated study list creator.
-  - **Problems** ([frontend/src/components/ProblemManager.tsx](frontend/src/components/ProblemManager.tsx)): Problem inventory, search, category filters, and non-dismissive editing modal.
-  - **Backup & Recovery** ([frontend/src/components/BackupManager.tsx](frontend/src/components/BackupManager.tsx)): Single unified dashboard for native SQLite snapshots (`VACUUM INTO`), live file metrics, modal-guarded recovery, and collapsible JSON portability.
+- **Frontend Client** ([frontend/](frontend/)): Single-page application built with React 19, TypeScript, and Vite. Organized into three focused domains:
+  - **Shuffle Test (Study)** ([frontend/src/components/ShuffleView.tsx](frontend/src/components/ShuffleView.tsx)): Two-state review workflow transitioning between an entry Decks Hub (Company Loops, Coding Tracks, System Design Tracks, Custom Saved Decks with direct deletion) and an active testing room with bidirectional navigation.
+  - **Problems (Curate)** ([frontend/src/components/ProblemManager.tsx](frontend/src/components/ProblemManager.tsx)): Problem inventory, search, category filters, non-dismissive editing modal, and multi-select deck authoring for creating targeted review lists directly from filtered problem sets.
+  - **Backup & Recovery (Preserve)** ([frontend/src/components/BackupManager.tsx](frontend/src/components/BackupManager.tsx)): Single unified dashboard for native SQLite snapshots (`VACUUM INTO`), live file metrics, modal-guarded recovery, and collapsible JSON portability.
 - **Storage Layer**: Default configuration uses local SQLite at [data/brain_shuffle.db](data/brain_shuffle.db) with WAL mode enabled, with containerized PostgreSQL fallback available through [docker-compose.yml](docker-compose.yml).
 - **Serialization & Snapshot Engine** ([src/brain_shuffle/services/backup_service.py](src/brain_shuffle/services/backup_service.py)): Manages native zero-lock SQLite snapshots and secondary JSON export/import.
 
@@ -236,6 +236,42 @@ Where:
 
 Weighted random sampling without replacement selects candidates from the evaluated pool until the batch limit is fulfilled.
 
+### 3. Topic Interleaving & Anti-Clustering Layout
+
+To prevent blocked practice and cognitive priming during active recall sessions, the shuffle engine enforces topic interleaving:
+
+```mermaid
+flowchart LR
+    A["Raw Problem Pool"] --> B["Diverse Candidate Sampling<br/>(Discount weight on topic repeat)"]
+    B --> C["Selected Problem Batch"]
+    C --> D["Frequency-Aware Interleaver<br/>(Anti-Clustering Penalty + Lookback)"]
+    D --> E["Review Sequence<br/>(Zero consecutive same-topic cards)"]
+```
+
+#### Topic Signature Extraction
+For each problem $p$, the engine extracts:
+1. **Normalized Exact Tags**: Lowercase, trimmed, punctuation-unified tag tokens (e.g. `"two-pointers"` $\to$ `"two pointers"`).
+2. **Subtopic Tokens**: Word-level stems across tags (e.g. `"pointers"` in `"two pointers"` and `"fast/slow pointers"`).
+3. **Category Scope**: `category_id` representing the high-level domain (`coding`, `system_design`, `llm`, `vlm`).
+
+#### Topic Collision Penalty Metric
+Between any two problems $A$ and $B$, topic collision penalty $S(A, B)$ is evaluated as:
+- **Exact Tag Collision**: $+1000 \times |Tags_A \cap Tags_B|$ (highest penalty; strict separation).
+- **Subtopic Token Collision**: $+250 \times |Tokens_A \cap Tokens_B|$ (secondary penalty for related techniques).
+- **Domain Category Collision**: $+50$ when belonging to the same domain (ensures balanced domain rotation in cross-topic decks).
+
+#### Dynamic Topic Diversity Sampling
+When drawing a subset of $M$ problems from candidate pool $P$, candidate weight is dynamically discounted as problems are selected:
+$$W_{\text{effective}}(c) = \frac{W(c)}{1.0 + \sum_{s \in \text{Selected}} S(c, s) / 250.0}$$
+This guarantees diverse topic coverage across the drawn batch.
+
+#### Frequency-Aware Anti-Clustering Interleaving
+To prevent greedy starvation where high-frequency topics clump at the end of a session, problems are arranged dynamically:
+1. The interleaver tracks a 3-card lookback window:
+   $$\text{Penalty}(c) = S(c, O_{-1}) + 0.3 \times S(c, O_{-2}) + 0.1 \times S(c, O_{-3})$$
+2. Ties in minimal overlap are resolved by choosing candidates with higher remaining frequency ($\text{rem\_freq}$), distributing dominant topics evenly across the deck.
+3. If an initial predecessor is known from the prior batch, the first card of the new batch is chosen to avoid the preceding topic, ensuring smooth inter-batch transitions.
+
 ---
 
 ## 5) Active Recall Workspace & Flashcard Ergonomics
@@ -246,22 +282,25 @@ The active recall interface is implemented in [frontend/src/components/ProblemFl
 - Cards display only category tag, review statistics, and problem title upon initial load.
 - Problem hints, constraints, and solutions remain unmounted or hidden to prevent passive recognition.
 
-### 2. Synchronized Python Code Scratchpad
-- **Layer Architecture**: A transparent `<textarea>` overlay is aligned with an underlying mirrored `<pre><code>` block and line numbers gutter.
+### 2. Multi-Language Code Scratchpad
+- **Editor Engine**: CodeMirror 6 via `@uiw/react-codemirror`, replacing dual `<pre>` / `<textarea>` DOM overlays with a single unified, performant, AST-aware editor surface.
+- **Supported Languages**: Multi-language dropdown selector with persistence in `localStorage` (`preferred_scratchpad_language`), offering AST parsing and grammar highlights for:
+  - Python 3 (`@codemirror/lang-python` with automatic colon indentation and docstring handling)
+  - TypeScript & JavaScript (`@codemirror/lang-javascript` with TSX and JSX extensions)
+  - C++ (`@codemirror/lang-cpp`)
+  - Java (`@codemirror/lang-java`)
+  - Go (`@codemirror/lang-go`)
+  - Rust (`@codemirror/lang-rust`)
+  - SQL (`@codemirror/lang-sql`)
+- **Quote Pairing & Multiline Comments**: AST-aware bracket matching and quote closing natively supports nested quotes and multiline comments/docstrings (`"""` and `'''`), resolving cursor trapping and unwanted character duplication.
 - **Viewport Dimensions & Geometry**:
-  - Baseline height expanded from 180px to **380px** (accommodating 18–22 visible lines).
-  - Maximum container width bounded to **920px** with clean margin centering, preventing horizontal measure over-extension on wide displays.
-  - Interactive bottom drag handle bar (`.scratchpad-resize-bar`) permitting smooth vertical resizing between 260px and 820px, with user preferences persisted in `localStorage`.
-  - Dynamic line number gutter that scales to fill the expanded vertical capacity without leaving blank gutter space.
-- **Syntax Highlighting**: Real-time syntax coloring powered by Prism.js Python grammar tokens.
-- **Editor Ergonomics**:
-  - `Tab`: Intercepted to insert four spaces at cursor position.
-  - `Shift+Tab`: Dedents four spaces or up to the current line's leading whitespace boundary.
-  - `Enter`: Inherits indentation from the preceding line; appends four additional spaces when the preceding line ends with a colon `:`.
-  - `Backspace`: Deletes four spaces atomically when positioned on an indentation step.
-  - Auto-Closing Pairs: Automatically pairs `()`, `[]`, `{}`, `""`, and `''`.
-- **Ephemeral Session Storage**: Draft code persists in browser `sessionStorage` under `session_scratch_{problem_id}`. Code is retained across card navigations within the session but never written to the backend database.
-- **Quick Actions**: One-click clipboard copy with status feedback, and a session clear action.
+  - Baseline height configured at **380px** (accommodating 18–22 visible lines).
+  - Maximum container width bounded to **920px** with margin centering.
+  - Interactive bottom drag handle bar (`.scratchpad-resize-bar`) permitting smooth vertical resizing between 260px and 820px, with user preferences persisted in `localStorage` (`preferred_scratchpad_height`).
+- **Indentation & Keymaps**: Configured with `indentUnit.of("    ")` and `indentWithTab` from `@codemirror/commands` for tab insertion, block indentation, dedentation, and auto-indent on newline.
+- **Theme & Dark Palette**: Customized CodeMirror theme and `@codemirror/theme-one-dark` conforming to `--bg-primary` (`#090d16`), `--border-color` (`#1e293b`), and `#38bdf8` accent carets.
+- **Ephemeral Session Storage**: Draft code persists in browser `sessionStorage` under `session_scratch_{problem_id}` across card navigations, without persisting to the backend database.
+- **Quick Actions**: One-click clipboard copy with status feedback, line count pill, and a session clear action.
 
 ### 3. Minimalist Progressive Reveal
 - **Disclosure Controls**: Two compact toggle buttons labeled **Hints** and **Notes** disclose problem details and reference solutions on demand.
@@ -274,13 +313,13 @@ The active recall interface is implemented in [frontend/src/components/ProblemFl
 
 ### 5. Session Navigation & Keyboard Ergonomics
 - **Directional Navigation Controls**:
-  - **Previous Problem**: Bottom navigation button (`.shuffle-nav-btn`) and Left Arrow key (`ArrowLeft`).
-  - **Next Problem**: Bottom navigation button (`.shuffle-nav-btn`) and Right Arrow key (`ArrowRight`).
-  - **Exit Deck**: Header return button ("Back to Decks Hub") returns cleanly to the Decks Hub view.
-- **Input Field Awareness**: Global keyboard listeners check `document.activeElement` and bypass shortcut execution when active inside `<input>`, `<textarea>`, or contentEditable fields (such as the Python scratchpad).
+  - **Previous Problem**: Left Arrow key (`ArrowLeft`) and top-right `< Prev` card control.
+  - **Next Problem**: Right Arrow key (`ArrowRight`) and top-right `Next >` card control.
+  - **Exit Deck**: Streamlined breadcrumb return button (`← Decks`) in `.active-session-breadcrumb-bar`.
+- **Input Field Awareness**: Global keyboard listeners check `document.activeElement` and bypass shortcut execution when active inside `<input>`, `<textarea>`, or contentEditable fields (such as the CodeMirror editor).
 - **Session Progress & Telemetry**:
-  - Displays card position indicator (`Card X of Y`) alongside session metrics (`Z reviewed this session`).
-  - Header actions include `Back to Decks Hub`, mode switching (`Priority` vs `Random`), and `Reshuffle`.
+  - Displays card position indicator (`Card X of Y`) alongside session review count badge (`✓ N`).
+  - Streamlined breadcrumb header (`.active-session-breadcrumb-bar`) houses `← Decks / Deck Title`, compact mode toggle (`Priority` vs `Random`), and `Reshuffle`.
 
 ---
 
@@ -351,12 +390,12 @@ Problems can be updated via the frontend interface ([frontend/src/components/Pro
 - **Textarea Tab Indentation**: Both the Hints and Notes textareas intercept `Tab` and `Shift+Tab` to insert/remove four spaces, and auto-indent on `Enter`.
 - **Enlarged Notes Editor**: Configured with 12 visible rows, a 240px minimum height, monospace typography, and vertical resizing.
 
-### 5. Company Review Lists & In-Flight Decks
-The company review manager ([frontend/src/components/CompanyReviewManager.tsx](frontend/src/components/CompanyReviewManager.tsx)) facilitates targeted interview preparation:
-- Displays aggregated problem counts by company across Coding, System Design, and AI categories.
-- Provides a multi-select problem checklist allowing users to curate and name custom review lists.
-- Persists lists to the `review_lists` and `review_list_problems` tables.
-- Enables one-click launch of targeted review sessions filtered to the active deck.
+### 5. Multi-Select Deck Authoring & Custom Decks
+The problem manager ([frontend/src/components/ProblemManager.tsx](frontend/src/components/ProblemManager.tsx)) incorporates multi-select deck curation:
+- Provides row selection checkboxes and a "Select All Visible" toggle for filtered problem sets.
+- Persists custom decks to the `review_lists` and `review_list_problems` tables via `createReviewList()`.
+- Supports saving decks in-place or immediate one-click launch into the Shuffle Test cockpit.
+- Persisted custom decks are rendered in Channel 4 ("Custom Decks") of [frontend/src/components/ShuffleView.tsx](frontend/src/components/ShuffleView.tsx) with direct testing and 1-click deletion.
 
 ---
 

@@ -1,19 +1,20 @@
 # Brain Shuffle
 
-Knowledge retention and active recall platform designed for randomized problem testing, rolling intent-driven review cadences, in-flight company review decks, and Python code scratchpad testing.
+Knowledge retention and active recall platform designed for randomized problem testing, rolling intent-driven review cadences, in-flight company review decks, and multi-language code scratchpad testing.
 
 Full architecture specifications are documented in [docs/DESIGN.md](docs/DESIGN.md).
 
 ## 1) Overview
 
-Brain Shuffle provides an active recall loop for technical problems across domain categories (`coding`, `system_design`, `llm`, `vlm`). Problems include titles, active recall prompts, hidden solutions/reference notes, subtopic tags, and company associations. Tests present cards with the problem title and a synchronized Python code block scratchpad, prompting recall before revealing hints and reference notes.
+Brain Shuffle provides an active recall loop for technical problems across domain categories (`coding`, `system_design`, `llm`, `vlm`). Problems include titles, active recall prompts, hidden solutions/reference notes, subtopic tags, and company associations. Tests present cards with the problem title and an embedded multi-language code scratchpad, prompting recall before revealing hints and reference notes.
 
 ```mermaid
 flowchart LR
     A["Add / Ingest Problem\n(Category, Prompt, Solution, Tags)"] --> B["Storage Engine\n(SQLite WAL Mode / PostgreSQL)"]
     B --> C["Decks Hub\n(Full Company Loops / Coding / System Design / Custom)"]
-    C --> D["Active Test Room\n(Title + Python Scratchpad + Prev/Next)"]
-    D --> E["Reveal Details & Hints\n(Monospace Notes & Code)"]
+    C --> D["Active Test Room\n(Title + Multi-Language Scratchpad + Prev/Next)"]
+    E["Reveal Details & Hints\n(Monospace Notes & Code)"]
+    D --> E
     E --> F["Rolling Intent Cadence\n(Drill Soon / Mid-Week / Next Week / Park)"]
     F --> B
     B -.-> G["Backup & Recovery Engine\n(Native SQLite VACUUM INTO + Portable JSON)"]
@@ -23,7 +24,7 @@ flowchart LR
 - **Decks Hub**: Multi-channel study entry point grouping problems by Full Company Loops, Coding by Company, System Design by Company, and Custom Saved Decks, plus a 1-click Quick Mix Shuffle.
 - **Title-First Active Recall**: Problem titles are presented first; active recall prompts and reference notes remain hidden until revealed.
 - **Test Session Navigation**: Bidirectional card navigation via Previous and Next controls, keyboard arrow shortcuts (`←` / `→`), and live progress tracking (`Card X of Y`).
-- **Python Code Scratchpad**: Live syntax-highlighted editor with 4-space Tab indentation, Shift+Tab dedentation, Enter auto-indentation with colon detection, and ephemeral session persistence (`sessionStorage`).
+- **Multi-Language Code Scratchpad**: CodeMirror 6 editor with AST grammar support for Python 3, TypeScript, JavaScript, C++, Java, Go, Rust, and SQL, native docstrings/multiline comments (`"""`), 4-space Tab indent, smooth height resizing, and ephemeral session persistence (`sessionStorage`).
 - **Rolling Review Cadence**: Continuous rolling-window scheduling (`Drill Soon ~4h`, `Mid-Week 2–3d`, `Next Week 7d`, `Skip / Park 21d`) eliminating calendar-boundary resets.
 - **Multi-Level Cadence Controls**: Configurable via the Edit Problem dialog, dynamic intent ratings during recall tests, or immediate on-demand review via the Decks Hub.
 - **Native SQLite Snapshots & Recovery**: Deterministic zero-lock compaction (`VACUUM INTO`) to canonical storage (`data/backups/brain_shuffle_snapshot.db`) with interactive modal verification and safety rollback copies.
@@ -47,12 +48,11 @@ flowchart LR
   - [src/brain_shuffle/cli.py](src/brain_shuffle/cli.py): Command-line tool for snapshotting, data dump, restore, and seeding.
   - [src/brain_shuffle/main.py](src/brain_shuffle/main.py): FastAPI server entrypoint with background snapshot lifecycle worker.
 - [frontend/](frontend/): React + TypeScript single-page application built with Vite:
-  - [frontend/src/components/ShuffleView.tsx](frontend/src/components/ShuffleView.tsx): Two-state review workflow (Decks Hub $\leftrightarrow$ Active Test Room).
+  - [frontend/src/components/ShuffleView.tsx](frontend/src/components/ShuffleView.tsx): Study domain: two-state review workflow (Decks Hub $\leftrightarrow$ Active Test Room with direct deck deletion).
   - [frontend/src/components/ProblemFlashcard.tsx](frontend/src/components/ProblemFlashcard.tsx): Active recall flashcard component.
-  - [frontend/src/components/PythonScratchpad.tsx](frontend/src/components/PythonScratchpad.tsx): Syntax-highlighted Python editor.
-  - [frontend/src/components/ProblemManager.tsx](frontend/src/components/ProblemManager.tsx): Problem list, modal creation, and in-place editing.
-  - [frontend/src/components/CompanyReviewManager.tsx](frontend/src/components/CompanyReviewManager.tsx): Company breakdowns and deck creator.
-  - [frontend/src/components/BackupManager.tsx](frontend/src/components/BackupManager.tsx): Single-card native snapshot manager and JSON portability controls.
+  - [frontend/src/components/PythonScratchpad.tsx](frontend/src/components/PythonScratchpad.tsx): CodeMirror 6 multi-language editor.
+  - [frontend/src/components/ProblemManager.tsx](frontend/src/components/ProblemManager.tsx): Curate domain: problem inventory, search, filters, non-dismissive editor, and multi-select deck authoring.
+  - [frontend/src/components/BackupManager.tsx](frontend/src/components/BackupManager.tsx): Preserve domain: single-card native snapshot manager and JSON portability controls.
 - [data/backups/](data/backups/): Designated storage directory for canonical snapshots (`brain_shuffle_snapshot.db`) and exports.
 
 ---

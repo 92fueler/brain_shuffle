@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import type { Category, Problem, ProblemCreatePayload } from "../types";
-import { createProblem, updateProblem, deleteProblem, createCategory } from "../api";
-import { Plus, Search, Trash2, FolderPlus, ChevronDown, ChevronUp, Pencil } from "lucide-react";
+import { createProblem, updateProblem, deleteProblem, createCategory, createReviewList } from "../api";
+import { Plus, Search, Trash2, FolderPlus, ChevronDown, ChevronUp, Pencil, Layers, CheckSquare, Square } from "lucide-react";
 import { ProblemFlashcard } from "./ProblemFlashcard";
 
 interface ProblemManagerProps {
@@ -10,6 +10,12 @@ interface ProblemManagerProps {
   onRefresh: () => void;
   selectedCategory: string | null;
   onSelectCategory: (id: string | null) => void;
+  onStartReviewListShuffle?: (
+    reviewListId: string,
+    name: string,
+    company?: string | null,
+    problem_count?: number
+  ) => void;
 }
 
 export const ProblemManager: React.FC<ProblemManagerProps> = ({
@@ -18,6 +24,7 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
   onRefresh,
   selectedCategory,
   onSelectCategory,
+  onStartReviewListShuffle,
 }) => {
   const [search, setSearch] = useState("");
   const [selectedCompanyFilter, setSelectedCompanyFilter] = useState<string | null>(null);
@@ -25,6 +32,14 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
   const [showCatModal, setShowCatModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  // Multi-select Deck Authoring State
+  const [selectedProblemIds, setSelectedProblemIds] = useState<Set<string>>(new Set());
+  const [showCreateDeckModal, setShowCreateDeckModal] = useState(false);
+  const [newDeckName, setNewDeckName] = useState("");
+  const [newDeckCompany, setNewDeckCompany] = useState("");
+  const [newDeckDesc, setNewDeckDesc] = useState("");
+  const [isCreatingDeck, setIsCreatingDeck] = useState(false);
 
   // Form State (New Problem)
   const [formCatId, setFormCatId] = useState(categories[0]?.id || "");
@@ -43,6 +58,7 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
   const [editNotes, setEditNotes] = useState("");
   const [editTagsStr, setEditTagsStr] = useState("");
   const [editCompaniesStr, setEditCompaniesStr] = useState("");
+  const [editCadence, setEditCadence] = useState("weekly");
   const [isUpdating, setIsUpdating] = useState(false);
 
   // Category Form State
@@ -179,6 +195,7 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
     setEditNotes(problem.notes);
     setEditTagsStr((problem.tags || []).join(", "));
     setEditCompaniesStr((problem.companies || []).join(", "));
+    setEditCadence(problem.cadence || "weekly");
     setShowEditModal(true);
   };
 
@@ -215,6 +232,7 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
         notes: editNotes,
         tags,
         companies,
+        cadence: editCadence,
       });
 
       setShowEditModal(false);
@@ -275,6 +293,86 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
       (p.companies && p.companies.some((c) => c.toLowerCase().includes(s)));
     return matchesCategory && matchesCompany && matchesSearch;
   });
+
+  const isAllVisibleSelected =
+    filteredProblems.length > 0 && filteredProblems.every((p) => selectedProblemIds.has(p.id));
+
+  const toggleProblemSelection = (problemId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedProblemIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(problemId)) {
+        next.delete(problemId);
+      } else {
+        next.add(problemId);
+      }
+      return next;
+    });
+  };
+
+  const handleToggleSelectAll = () => {
+    const visibleIds = filteredProblems.map((p) => p.id);
+    const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedProblemIds.has(id));
+
+    setSelectedProblemIds((prev) => {
+      const next = new Set(prev);
+      if (allSelected) {
+        visibleIds.forEach((id) => next.delete(id));
+      } else {
+        visibleIds.forEach((id) => next.add(id));
+      }
+      return next;
+    });
+  };
+
+  const handleCreateCustomDeck = async (e: React.FormEvent, startImmediately: boolean = false) => {
+    e.preventDefault();
+    if (!newDeckName.trim() || selectedProblemIds.size === 0) return;
+
+    setIsCreatingDeck(true);
+    try {
+      const created = await createReviewList({
+        name: newDeckName.trim(),
+        company: newDeckCompany.trim() || undefined,
+        description: newDeckDesc.trim() || undefined,
+        problem_ids: Array.from(selectedProblemIds),
+      });
+      setShowCreateDeckModal(false);
+      setNewDeckName("");
+      setNewDeckCompany("");
+      setNewDeckDesc("");
+      setSelectedProblemIds(new Set());
+      onRefresh();
+
+      if (startImmediately && onStartReviewListShuffle) {
+        onStartReviewListShuffle(
+          created.id,
+          created.name,
+          created.company,
+          created.problem_count
+        );
+      }
+    } catch (err) {
+      console.error("Failed to create custom deck", err);
+    } finally {
+      setIsCreatingDeck(false);
+    }
+  };
+
+  const handleBatchSetCadence = async (cadence: string) => {
+    if (selectedProblemIds.size === 0) return;
+    try {
+      await Promise.all(
+        Array.from(selectedProblemIds).map((id) =>
+          updateProblem(id, { cadence })
+        )
+      );
+      setSelectedProblemIds(new Set());
+      onRefresh();
+    } catch (err) {
+      console.error("Failed to update cadence for selected problems", err);
+    }
+  };
 
   return (
     <div className="problem-manager">
@@ -338,6 +436,71 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
         })}
       </div>
 
+      {/* Multi-select Deck Authoring Action Bar */}
+      {selectedProblemIds.size > 0 && (
+        <div className="deck-selection-toolbar">
+          <div className="deck-selection-count">
+            <span className="badge stats-badge">{selectedProblemIds.size}</span>
+            <span>problems selected</span>
+          </div>
+          <div className="deck-selection-actions">
+            <button
+              type="button"
+              className="primary-action-btn save-deck-btn"
+              onClick={() => {
+                setNewDeckName(
+                  selectedCompanyFilter ? `${selectedCompanyFilter} Focus Deck` : ""
+                );
+                setNewDeckCompany(selectedCompanyFilter || "");
+                setNewDeckDesc("");
+                setShowCreateDeckModal(true);
+              }}
+            >
+              <Layers size={15} /> Save as Deck
+            </button>
+            <button
+              type="button"
+              className="secondary-action-btn"
+              onClick={() => handleBatchSetCadence("daily")}
+              title="Set selected problems to Drill Soon (Intra-day review ~4h)"
+            >
+              🔄 Drill Selected (~4h)
+            </button>
+            <button
+              type="button"
+              className="secondary-action-btn"
+              onClick={() => handleBatchSetCadence("monthly")}
+              title="Park selected problems (21d deferred)"
+            >
+              ⏭️ Park Selected (21d)
+            </button>
+            <button
+              type="button"
+              className="secondary-action-btn"
+              onClick={() => setSelectedProblemIds(new Set())}
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* List Header with Select All and Count */}
+      <div className="problem-list-controls">
+        <button
+          type="button"
+          className="select-all-btn"
+          onClick={handleToggleSelectAll}
+          title={isAllVisibleSelected ? "Deselect all visible problems" : "Select all visible problems"}
+        >
+          {isAllVisibleSelected ? <CheckSquare size={15} /> : <Square size={15} />}
+          <span>{isAllVisibleSelected ? "Deselect All Visible" : "Select All Visible"}</span>
+        </button>
+        <span className="problem-list-count">
+          Showing {filteredProblems.length} of {problems.length} problems
+        </span>
+      </div>
+
       {/* Problem Titles List - Minimalist, Uncluttered */}
       <div className="problem-list">
         {filteredProblems.length === 0 ? (
@@ -345,15 +508,24 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
         ) : (
           filteredProblems.map((problem) => {
             const isExpanded = expandedId === problem.id;
+            const isSelected = selectedProblemIds.has(problem.id);
             return (
               <div
                 key={problem.id}
-                className={`problem-item ${isExpanded ? "expanded" : ""}`}
+                className={`problem-item ${isExpanded ? "expanded" : ""} ${isSelected ? "problem-row-selected" : ""}`}
                 onClick={() => setExpandedId(isExpanded ? null : problem.id)}
               >
-                {/* Collapsed Row: Problem Title Only with Category Tag and Expand/Delete */}
+                {/* Collapsed Row: Checkbox, Category Tag, Problem Title, Actions */}
                 <div className="problem-row-header">
                   <div className="problem-title-wrapper">
+                    <button
+                      type="button"
+                      className={`row-select-checkbox-btn ${isSelected ? "selected" : ""}`}
+                      onClick={(e) => toggleProblemSelection(problem.id, e)}
+                      title={isSelected ? "Deselect from deck" : "Select for deck"}
+                    >
+                      {isSelected ? <CheckSquare size={16} /> : <Square size={16} />}
+                    </button>
                     <span className="problem-category-pill">{getCategoryName(problem.category_id)}</span>
                     <h3 className="problem-title-text">{problem.title}</h3>
                   </div>
@@ -598,6 +770,19 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
               </div>
 
               <div className="form-group">
+                <label>Review Cadence & Priority:</label>
+                <select
+                  value={editCadence}
+                  onChange={(e) => setEditCadence(e.target.value)}
+                >
+                  <option value="daily">🔄 Drill Soon (Intra-day review ~4h)</option>
+                  <option value="intra_week">📅 Mid-Week (Consolidation 2–3d)</option>
+                  <option value="weekly">🗓️ Next Week (Standard 7d)</option>
+                  <option value="monthly">⏭️ Skip / Park (Parked for 21d)</option>
+                </select>
+              </div>
+
+              <div className="form-group">
                 <label>Hints (Problem Prompt & Constraints):</label>
                 <textarea
                   className="prompt-editor-textarea"
@@ -690,6 +875,85 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
                 <button type="submit" className="primary-action-btn">
                   Create Category
                 </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Save Custom Review Deck Modal */}
+      {showCreateDeckModal && (
+        <div className="modal-overlay" onClick={() => setShowCreateDeckModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Save Custom Review Deck</h2>
+              <button
+                type="button"
+                className="modal-close-icon-btn"
+                onClick={() => setShowCreateDeckModal(false)}
+                title="Close"
+              >
+                ✕
+              </button>
+            </div>
+            <form onSubmit={handleCreateCustomDeck}>
+              <div className="deck-modal-summary">
+                <span>Saving <strong>{selectedProblemIds.size}</strong> problems into a persistent review deck.</span>
+              </div>
+              <div className="form-group">
+                <label>Deck Name *</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Meta Onsite Prep, Graph Hard Patterns..."
+                  value={newDeckName}
+                  onChange={(e) => setNewDeckName(e.target.value)}
+                  required
+                  autoFocus
+                />
+              </div>
+              <div className="form-group">
+                <label>Target Company (Optional)</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Google, Meta, Amazon..."
+                  value={newDeckCompany}
+                  onChange={(e) => setNewDeckCompany(e.target.value)}
+                />
+              </div>
+              <div className="form-group">
+                <label>Description (Optional)</label>
+                <textarea
+                  placeholder="Notes or focus topics for this deck..."
+                  value={newDeckDesc}
+                  onChange={(e) => setNewDeckDesc(e.target.value)}
+                  rows={2}
+                />
+              </div>
+              <div className="modal-actions">
+                <button
+                  type="button"
+                  className="secondary-action-btn"
+                  onClick={() => setShowCreateDeckModal(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="secondary-action-btn"
+                  disabled={isCreatingDeck || !newDeckName.trim() || selectedProblemIds.size === 0}
+                >
+                  {isCreatingDeck ? "Saving..." : "Save Deck"}
+                </button>
+                {onStartReviewListShuffle && (
+                  <button
+                    type="button"
+                    className="primary-action-btn"
+                    disabled={isCreatingDeck || !newDeckName.trim() || selectedProblemIds.size === 0}
+                    onClick={(e) => handleCreateCustomDeck(e, true)}
+                  >
+                    Save & Test Now →
+                  </button>
+                )}
               </div>
             </form>
           </div>

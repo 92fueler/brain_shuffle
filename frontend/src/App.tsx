@@ -2,20 +2,18 @@ import { useState, useEffect } from "react";
 import type { Category, Problem, CompanyStat, ReviewList } from "./types";
 import { fetchCategories, fetchProblems, fetchCompanies, fetchReviewLists } from "./api";
 import { ShuffleView } from "./components/ShuffleView";
-import { CompanyReviewManager } from "./components/CompanyReviewManager";
 import { ProblemManager } from "./components/ProblemManager";
 import { BackupManager } from "./components/BackupManager";
-import { Shuffle, BookOpen, Database, Brain, Building2 } from "lucide-react";
+import { Shuffle, BookOpen, Database, Brain } from "lucide-react";
 import "./App.css";
 
 export function App() {
-  const [activeTab, setActiveTab] = useState<"shuffle" | "companies" | "problems" | "backup">("shuffle");
+  const [activeTab, setActiveTab] = useState<"shuffle" | "problems" | "backup">("shuffle");
   const [categories, setCategories] = useState<Category[]>([]);
   const [problems, setProblems] = useState<Problem[]>([]);
   const [companies, setCompanies] = useState<CompanyStat[]>([]);
   const [reviewLists, setReviewLists] = useState<ReviewList[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [activeCompanyFilter, setActiveCompanyFilter] = useState<string | null>(null);
   const [activeReviewList, setActiveReviewList] = useState<{
     id: string;
     name: string;
@@ -51,14 +49,6 @@ export function App() {
     problem_count?: number
   ) => {
     setActiveReviewList({ id: reviewListId, name, company, problem_count });
-    setActiveCompanyFilter(null);
-    setSelectedCategory(null);
-    setActiveTab("shuffle");
-  };
-
-  const handleStartCompanyShuffle = (companyName: string) => {
-    setActiveCompanyFilter(companyName);
-    setActiveReviewList(null);
     setSelectedCategory(null);
     setActiveTab("shuffle");
   };
@@ -85,13 +75,6 @@ export function App() {
             <span>Shuffle Test</span>
           </button>
           <button
-            className={`nav-tab ${activeTab === "companies" ? "active" : ""}`}
-            onClick={() => setActiveTab("companies")}
-          >
-            <Building2 size={18} />
-            <span>Company Lists ({reviewLists.length})</span>
-          </button>
-          <button
             className={`nav-tab ${activeTab === "problems" ? "active" : ""}`}
             onClick={() => setActiveTab("problems")}
           >
@@ -114,20 +97,9 @@ export function App() {
             categories={categories}
             companies={companies}
             reviewLists={reviewLists}
-            selectedCategory={selectedCategory}
-            onSelectCategory={setSelectedCategory}
-            activeCompanyFilter={activeCompanyFilter}
-            onSelectCompany={setActiveCompanyFilter}
             activeReviewList={activeReviewList}
             onClearReviewList={() => setActiveReviewList(null)}
-          />
-        )}
-
-        {activeTab === "companies" && (
-          <CompanyReviewManager
-            categories={categories}
-            onStartReviewListShuffle={handleStartReviewListShuffle}
-            onStartCompanyShuffle={handleStartCompanyShuffle}
+            onRefreshReviewLists={refreshData}
           />
         )}
 
@@ -138,6 +110,7 @@ export function App() {
             onRefresh={refreshData}
             selectedCategory={selectedCategory}
             onSelectCategory={setSelectedCategory}
+            onStartReviewListShuffle={handleStartReviewListShuffle}
           />
         )}
 

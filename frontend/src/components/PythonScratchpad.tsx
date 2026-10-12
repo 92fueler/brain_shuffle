@@ -1,7 +1,85 @@
-import React, { useRef, useState, useMemo } from "react";
-import Prism from "prismjs";
-import "prismjs/components/prism-python";
+import React, { useState, useMemo, useRef, useCallback } from "react";
+import CodeMirror, { type Extension } from "@uiw/react-codemirror";
+import { EditorView, keymap } from "@codemirror/view";
+import { indentWithTab } from "@codemirror/commands";
+import { indentUnit } from "@codemirror/language";
+import { oneDark } from "@codemirror/theme-one-dark";
+import { python } from "@codemirror/lang-python";
+import { javascript } from "@codemirror/lang-javascript";
+import { cpp } from "@codemirror/lang-cpp";
+import { java } from "@codemirror/lang-java";
+import { go } from "@codemirror/lang-go";
+import { rust } from "@codemirror/lang-rust";
+import { sql } from "@codemirror/lang-sql";
 import { Code2, Copy, Check, RotateCcw } from "lucide-react";
+
+export type SupportedLanguage =
+  | "python"
+  | "typescript"
+  | "javascript"
+  | "cpp"
+  | "java"
+  | "go"
+  | "rust"
+  | "sql";
+
+interface LanguageOption {
+  id: SupportedLanguage;
+  name: string;
+  meta: string;
+  placeholder: string;
+}
+
+const LANGUAGE_OPTIONS: LanguageOption[] = [
+  {
+    id: "python",
+    name: "Python 3",
+    meta: "4 spaces • auto-indent",
+    placeholder: "# Write Python code here... (auto-indent, comments & quotes supported)",
+  },
+  {
+    id: "typescript",
+    name: "TypeScript",
+    meta: "Strict types • TSX",
+    placeholder: "// Write TypeScript code here... (type annotations supported)",
+  },
+  {
+    id: "javascript",
+    name: "JavaScript",
+    meta: "ESNext • JSX",
+    placeholder: "// Write JavaScript code here...",
+  },
+  {
+    id: "cpp",
+    name: "C++",
+    meta: "C++17 / C++20",
+    placeholder: "// Write C++ code here...",
+  },
+  {
+    id: "java",
+    name: "Java",
+    meta: "OpenJDK / Java 21",
+    placeholder: "// Write Java code here...",
+  },
+  {
+    id: "go",
+    name: "Go",
+    meta: "Go 1.22+",
+    placeholder: "// Write Go code here...",
+  },
+  {
+    id: "rust",
+    name: "Rust",
+    meta: "Rust 2021 Edition",
+    placeholder: "// Write Rust code here...",
+  },
+  {
+    id: "sql",
+    name: "SQL",
+    meta: "Standard ANSI SQL",
+    placeholder: "-- Write SQL queries here...",
+  },
+];
 
 interface PythonScratchpadProps {
   problemId: string;
@@ -10,16 +88,95 @@ interface PythonScratchpadProps {
   onClear: () => void;
 }
 
+// Custom theme aligning CodeMirror with the application dark palette
+const appDarkTheme = EditorView.theme(
+  {
+    "&": {
+      height: "100%",
+      backgroundColor: "#090d16",
+      color: "#e2e8f0",
+      fontSize: "12.5px",
+      fontFamily:
+        'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace',
+    },
+    ".cm-content": {
+      fontFamily: "inherit",
+      lineHeight: "20px",
+      padding: "10px 0",
+      caretColor: "#38bdf8",
+    },
+    ".cm-cursor, .cm-dropCursor": {
+      borderLeftColor: "#38bdf8",
+      borderLeftWidth: "2px",
+    },
+    "&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection": {
+      backgroundColor: "rgba(59, 130, 246, 0.35) !important",
+    },
+    ".cm-gutters": {
+      backgroundColor: "#060911",
+      color: "#475569",
+      borderRight: "1px solid #1e293b",
+      fontFamily: "inherit",
+      fontSize: "12px",
+      lineHeight: "20px",
+      padding: "10px 0",
+      userSelect: "none",
+    },
+    ".cm-lineNumbers .cm-gutterElement": {
+      padding: "0 6px 0 6px",
+      minWidth: "24px",
+      textAlign: "right",
+    },
+    ".cm-activeLine": {
+      backgroundColor: "rgba(255, 255, 255, 0.03)",
+    },
+    ".cm-activeLineGutter": {
+      backgroundColor: "rgba(255, 255, 255, 0.06)",
+      color: "#94a3b8",
+    },
+    ".cm-scroller": {
+      overflow: "auto",
+      fontFamily: "inherit",
+    },
+    ".cm-line": {
+      padding: "0 6px",
+    },
+  },
+  { dark: true }
+);
+
 export const PythonScratchpad: React.FC<PythonScratchpadProps> = ({
-  problemId,
+  problemId: _problemId,
   value,
   onChange,
   onClear,
 }) => {
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const preRef = useRef<HTMLPreElement | null>(null);
-  const gutterRef = useRef<HTMLDivElement | null>(null);
   const [copied, setCopied] = useState<boolean>(false);
+
+  // Selected language state persisted in localStorage
+  const [language, setLanguage] = useState<SupportedLanguage>(() => {
+    try {
+      const saved = localStorage.getItem("preferred_scratchpad_language");
+      if (
+        saved &&
+        LANGUAGE_OPTIONS.some((opt) => opt.id === saved)
+      ) {
+        return saved as SupportedLanguage;
+      }
+    } catch {
+      // Ignore storage errors
+    }
+    return "python";
+  });
+
+  const handleLanguageChange = (newLang: SupportedLanguage) => {
+    setLanguage(newLang);
+    try {
+      localStorage.setItem("preferred_scratchpad_language", newLang);
+    } catch {
+      // Ignore storage errors
+    }
+  };
 
   // Preferred editor height state (default: 380px, range: 260px - 820px)
   const [editorHeight, setEditorHeight] = useState<number>(() => {
@@ -69,140 +226,52 @@ export const PythonScratchpad: React.FC<PythonScratchpadProps> = ({
     window.addEventListener("mouseup", handleMouseUp);
   };
 
-  // Line count calculations (fills entire visible gutter height)
-  const lines = useMemo(() => (value || "").split("\n"), [value]);
+  // Build language extension dynamically based on selected language
+  const languageExtension = useMemo<Extension>(() => {
+    switch (language) {
+      case "python":
+        return python();
+      case "typescript":
+        return javascript({ typescript: true, jsx: true });
+      case "javascript":
+        return javascript({ jsx: true });
+      case "cpp":
+        return cpp();
+      case "java":
+        return java();
+      case "go":
+        return go();
+      case "rust":
+        return rust();
+      case "sql":
+        return sql();
+      default:
+        return python();
+    }
+  }, [language]);
+
+  // Combined CodeMirror extensions
+  const extensions = useMemo<Extension[]>(() => {
+    return [
+      oneDark,
+      appDarkTheme,
+      indentUnit.of("    "),
+      keymap.of([indentWithTab]),
+      languageExtension,
+    ];
+  }, [languageExtension]);
+
+  const activeOption = useMemo(() => {
+    return (
+      LANGUAGE_OPTIONS.find((opt) => opt.id === language) || LANGUAGE_OPTIONS[0]
+    );
+  }, [language]);
+
+  // Line count stats
   const lineCount = useMemo(() => {
-    const visibleCapacity = Math.floor((editorHeight - 24) / 20);
-    return Math.max(lines.length, visibleCapacity, 18);
-  }, [lines.length, editorHeight]);
-
-  // Prism Python syntax highlighting
-  const highlightedCode = useMemo(() => {
-    if (!value) return "";
-    try {
-      return Prism.highlight(value, Prism.languages.python, "python");
-    } catch {
-      return value;
-    }
+    if (!value) return 0;
+    return value.split("\n").length;
   }, [value]);
-
-  const syncScroll = (e: React.UIEvent<HTMLTextAreaElement>) => {
-    const top = e.currentTarget.scrollTop;
-    const left = e.currentTarget.scrollLeft;
-    if (preRef.current) {
-      preRef.current.scrollTop = top;
-      preRef.current.scrollLeft = left;
-    }
-    if (gutterRef.current) {
-      gutterRef.current.scrollTop = top;
-    }
-  };
-
-  const updateCodeWithCursor = (newVal: string, startPos: number, endPos: number) => {
-    onChange(newVal);
-    requestAnimationFrame(() => {
-      if (textareaRef.current) {
-        textareaRef.current.selectionStart = startPos;
-        textareaRef.current.selectionEnd = endPos;
-      }
-    });
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    const textarea = e.currentTarget;
-    const { selectionStart, selectionEnd, value: currentVal } = textarea;
-
-    // 1. Tab Key (Indentation & Dedentation)
-    if (e.key === "Tab") {
-      e.preventDefault();
-
-      if (e.shiftKey) {
-        // Shift+Tab: Dedent
-        const lineStart = currentVal.lastIndexOf("\n", selectionStart - 1) + 1;
-        const currentLine = currentVal.slice(lineStart, selectionEnd);
-        if (currentLine.startsWith("    ")) {
-          const nextVal = currentVal.slice(0, lineStart) + currentVal.slice(lineStart + 4);
-          const newStart = Math.max(lineStart, selectionStart - 4);
-          const newEnd = Math.max(lineStart, selectionEnd - 4);
-          updateCodeWithCursor(nextVal, newStart, newEnd);
-        } else if (currentLine.startsWith(" ")) {
-          const spaces = currentLine.match(/^ +/)?.[0].length || 1;
-          const remove = Math.min(spaces, 4);
-          const nextVal = currentVal.slice(0, lineStart) + currentVal.slice(lineStart + remove);
-          updateCodeWithCursor(nextVal, Math.max(lineStart, selectionStart - remove), Math.max(lineStart, selectionEnd - remove));
-        }
-      } else {
-        // Tab: Insert 4 spaces
-        const nextVal = currentVal.slice(0, selectionStart) + "    " + currentVal.slice(selectionEnd);
-        updateCodeWithCursor(nextVal, selectionStart + 4, selectionStart + 4);
-      }
-      return;
-    }
-
-    // 2. Enter Key (Auto-Indent + Colon Bonus)
-    if (e.key === "Enter") {
-      e.preventDefault();
-      const lineStart = currentVal.lastIndexOf("\n", selectionStart - 1) + 1;
-      const lineText = currentVal.slice(lineStart, selectionStart);
-      const indentMatch = lineText.match(/^[ \t]*/);
-      let indent = indentMatch ? indentMatch[0] : "";
-
-      // Check if line ends with a colon (ignoring comments and trailing space)
-      const cleanLine = lineText.replace(/#.*$/, "").trimEnd();
-      if (cleanLine.endsWith(":")) {
-        indent += "    ";
-      }
-
-      const nextVal = currentVal.slice(0, selectionStart) + "\n" + indent + currentVal.slice(selectionEnd);
-      const newPos = selectionStart + 1 + indent.length;
-      updateCodeWithCursor(nextVal, newPos, newPos);
-      return;
-    }
-
-    // 3. Backspace Key (Delete 4 spaces at once if on indentation)
-    if (e.key === "Backspace" && selectionStart === selectionEnd && selectionStart >= 4) {
-      const lineStart = currentVal.lastIndexOf("\n", selectionStart - 1) + 1;
-      const textBefore = currentVal.slice(lineStart, selectionStart);
-      if (/^ +$/.test(textBefore) && textBefore.length % 4 === 0) {
-        e.preventDefault();
-        const nextVal = currentVal.slice(0, selectionStart - 4) + currentVal.slice(selectionEnd);
-        updateCodeWithCursor(nextVal, selectionStart - 4, selectionStart - 4);
-        return;
-      }
-    }
-
-    // 4. Auto-closing pair brackets & quotes
-    const openCloser: Record<string, string> = {
-      "(": ")",
-      "[": "]",
-      "{": "}",
-      '"': '"',
-      "'": "'",
-    };
-
-    if (openCloser[e.key]) {
-      const closer = openCloser[e.key];
-      // Skip over closing character if already at cursor
-      if (currentVal[selectionStart] === closer && (e.key === '"' || e.key === "'")) {
-        e.preventDefault();
-        updateCodeWithCursor(currentVal, selectionStart + 1, selectionStart + 1);
-        return;
-      }
-
-      e.preventDefault();
-      const selected = currentVal.slice(selectionStart, selectionEnd);
-      const nextVal = currentVal.slice(0, selectionStart) + e.key + selected + closer + currentVal.slice(selectionEnd);
-      updateCodeWithCursor(nextVal, selectionStart + 1, selectionEnd + 1);
-      return;
-    }
-
-    // Skip over closing bracket if typed
-    if ((e.key === ")" || e.key === "]" || e.key === "}") && currentVal[selectionStart] === e.key) {
-      e.preventDefault();
-      updateCodeWithCursor(currentVal, selectionStart + 1, selectionStart + 1);
-      return;
-    }
-  };
 
   const handleCopy = async () => {
     if (!value) return;
@@ -215,21 +284,43 @@ export const PythonScratchpad: React.FC<PythonScratchpadProps> = ({
     }
   };
 
+  const handleEditorChange = useCallback(
+    (val: string) => {
+      onChange(val);
+    },
+    [onChange]
+  );
+
   return (
     <div className="python-scratchpad-container">
       {/* Editor Header */}
       <div className="scratchpad-header">
         <div className="scratchpad-lang-badge">
           <Code2 size={14} className="text-sky-400" />
-          <span className="lang-name">Python 3</span>
-          <span className="lang-meta">• Tab (4 spaces) & Auto-indent</span>
+          <div className="scratchpad-lang-selector-wrap">
+            <select
+              className="scratchpad-lang-select"
+              value={language}
+              onChange={(e) =>
+                handleLanguageChange(e.target.value as SupportedLanguage)
+              }
+              title="Select programming language"
+            >
+              {LANGUAGE_OPTIONS.map((opt) => (
+                <option key={opt.id} value={opt.id}>
+                  {opt.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <span className="lang-meta">• {activeOption.meta}</span>
         </div>
 
         <div className="scratchpad-actions">
           {value && (
             <>
               <span className="code-stats-pill">
-                {lines.length} {lines.length === 1 ? "line" : "lines"}
+                {lineCount} {lineCount === 1 ? "line" : "lines"}
               </span>
               <button
                 type="button"
@@ -237,7 +328,11 @@ export const PythonScratchpad: React.FC<PythonScratchpadProps> = ({
                 onClick={handleCopy}
                 title="Copy code to clipboard"
               >
-                {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                {copied ? (
+                  <Check size={12} className="text-emerald-400" />
+                ) : (
+                  <Copy size={12} />
+                )}
                 <span>{copied ? "Copied" : "Copy"}</span>
               </button>
               <button
@@ -254,45 +349,30 @@ export const PythonScratchpad: React.FC<PythonScratchpadProps> = ({
         </div>
       </div>
 
-      {/* Editor Body with Line Numbers & Syntax Highlighting */}
-      <div className="code-editor-box" style={{ height: `${editorHeight}px` }}>
-        {/* Line Numbers Gutter */}
-        <div ref={gutterRef} className="code-editor-gutter" aria-hidden="true">
-          {Array.from({ length: lineCount }, (_, i) => (
-            <div key={i + 1} className="gutter-line-number">
-              {i + 1}
-            </div>
-          ))}
-        </div>
-
-        {/* Editor Surface */}
-        <div className="code-editor-surface">
-          {/* Syntax Highlighted Render Layer */}
-          <pre ref={preRef} className="code-highlight-layer" aria-hidden="true">
-            <code
-              className="language-python"
-              dangerouslySetInnerHTML={{
-                __html: highlightedCode ? highlightedCode + "\n" : "",
-              }}
-            />
-          </pre>
-
-          {/* Transparent Input Textarea Overlay */}
-          <textarea
-            ref={textareaRef}
-            id={`scratchpad-${problemId}`}
-            className="code-editor-textarea"
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            onKeyDown={handleKeyDown}
-            onScroll={syncScroll}
-            placeholder="# Write Python code here... (auto-indent & tab supported)"
-            spellCheck={false}
-            autoCapitalize="off"
-            autoComplete="off"
-            autoCorrect="off"
-          />
-        </div>
+      {/* CodeMirror Editor Box */}
+      <div
+        className="code-editor-box codemirror-wrapper"
+        style={{ height: `${editorHeight}px` }}
+      >
+        <CodeMirror
+          value={value}
+          height={`${editorHeight}px`}
+          theme="dark"
+          extensions={extensions}
+          onChange={handleEditorChange}
+          placeholder={activeOption.placeholder}
+          basicSetup={{
+            lineNumbers: true,
+            foldGutter: false,
+            autocompletion: true,
+            bracketMatching: true,
+            closeBrackets: true,
+            indentOnInput: true,
+            highlightActiveLineGutter: true,
+            highlightActiveLine: true,
+          }}
+          style={{ height: "100%", width: "100%" }}
+        />
       </div>
 
       {/* Draggable Bottom Resize Handle Bar */}
@@ -308,3 +388,6 @@ export const PythonScratchpad: React.FC<PythonScratchpadProps> = ({
     </div>
   );
 };
+
+// Also export alias CodeScratchpad for multi-language clarity
+export const CodeScratchpad = PythonScratchpad;

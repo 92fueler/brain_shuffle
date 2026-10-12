@@ -30,6 +30,7 @@ export interface ProblemCreatePayload {
   notes: string;
   tags: string[];
   companies: string[];
+  cadence?: string;
 }
 
 export type ReviewAction =

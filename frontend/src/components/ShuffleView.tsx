@@ -1,20 +1,18 @@
 import React, { useState, useEffect } from "react";
 import type { Category, Problem, CompanyStat, ReviewAction, ReviewList } from "../types";
-import { fetchShuffleBatch, submitReview } from "../api";
+import { fetchShuffleBatch, submitReview, deleteReviewList } from "../api";
 import { ProblemFlashcard } from "./ProblemFlashcard";
 import {
   Shuffle,
   RotateCw,
-  Sparkles,
   AlertCircle,
   Building2,
   Layers,
-  ChevronLeft,
-  ChevronRight,
   ArrowLeft,
   Code,
   Cpu,
   Search,
+  Trash2,
 } from "lucide-react";
 
 interface ActiveDeckConfig {
@@ -32,10 +30,6 @@ interface ShuffleViewProps {
   categories: Category[];
   companies: CompanyStat[];
   reviewLists?: ReviewList[];
-  selectedCategory: string | null;
-  onSelectCategory: (id: string | null) => void;
-  activeCompanyFilter: string | null;
-  onSelectCompany: (company: string | null) => void;
   activeReviewList: {
     id: string;
     name: string;
@@ -43,6 +37,7 @@ interface ShuffleViewProps {
     problem_count?: number;
   } | null;
   onClearReviewList: () => void;
+  onRefreshReviewLists?: () => void;
 }
 
 export const ShuffleView: React.FC<ShuffleViewProps> = ({
@@ -51,6 +46,7 @@ export const ShuffleView: React.FC<ShuffleViewProps> = ({
   reviewLists = [],
   activeReviewList,
   onClearReviewList,
+  onRefreshReviewLists,
 }) => {
   const [activeDeck, setActiveDeck] = useState<ActiveDeckConfig | null>(null);
   const [activeChannel, setActiveChannel] = useState<ChannelTab>("company-all");
@@ -68,7 +64,40 @@ export const ShuffleView: React.FC<ShuffleViewProps> = ({
   const codingCat = categories.find((c) => c.slug === "coding");
   const sysDesignCat = categories.find((c) => c.slug === "system_design" || c.slug === "system-design");
 
-  // Sync when parent requests testing a custom review deck (e.g. from Company Lists tab)
+  const loadDeckBatch = async (
+    config?: ActiveDeckConfig | null,
+    overrideMode?: "cadence" | "pure_random"
+  ) => {
+    const target = config !== undefined ? config : activeDeck;
+    if (!target) return;
+
+    const effectiveMode = overrideMode || mode;
+    setLoading(true);
+    try {
+      const batch = await fetchShuffleBatch({
+        categoryId: target.categoryId || undefined,
+        company: target.company || undefined,
+        reviewListId: target.reviewListId || undefined,
+        limit: target.reviewListId || target.company ? 50 : 5,
+        mode: effectiveMode,
+        excludeIds: target.reviewListId || target.company ? [] : recentTestedIds.slice(-3),
+      });
+      setProblems(batch);
+      setCurrentIndex(0);
+    } catch (err) {
+      console.error("Failed to load deck batch", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleModeChange = (newMode: "cadence" | "pure_random") => {
+    if (newMode === mode) return;
+    setMode(newMode);
+    loadDeckBatch(activeDeck, newMode);
+  };
+
+  // Sync when parent requests testing a custom review deck (e.g. from Curate tab)
   useEffect(() => {
     if (activeReviewList) {
       const config: ActiveDeckConfig = {
@@ -83,30 +112,7 @@ export const ShuffleView: React.FC<ShuffleViewProps> = ({
     }
   }, [activeReviewList]);
 
-  const loadDeckBatch = async (config?: ActiveDeckConfig | null) => {
-    const target = config !== undefined ? config : activeDeck;
-    if (!target) return;
-
-    setLoading(true);
-    try {
-      const batch = await fetchShuffleBatch({
-        categoryId: target.categoryId || undefined,
-        company: target.company || undefined,
-        reviewListId: target.reviewListId || undefined,
-        limit: target.reviewListId || target.company ? 50 : 5,
-        mode,
-        excludeIds: target.reviewListId || target.company ? [] : recentTestedIds.slice(-3),
-      });
-      setProblems(batch);
-      setCurrentIndex(0);
-    } catch (err) {
-      console.error("Failed to load deck batch", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Keyboard navigation (ArrowLeft / ArrowRight) when not focused on an input or scratchpad textarea
+  // Keyboard navigation (ArrowLeft / ArrowRight) when not focused on an input, textarea, or CodeMirror editor
   useEffect(() => {
     if (!activeDeck) return;
 
@@ -116,7 +122,8 @@ export const ShuffleView: React.FC<ShuffleViewProps> = ({
         activeEl &&
         (activeEl.tagName === "INPUT" ||
           activeEl.tagName === "TEXTAREA" ||
-          (activeEl as HTMLElement).isContentEditable)
+          (activeEl as HTMLElement).isContentEditable ||
+          activeEl.closest(".cm-editor") !== null)
       ) {
         return;
       }
@@ -174,6 +181,19 @@ export const ShuffleView: React.FC<ShuffleViewProps> = ({
       console.error("Failed to submit review", err);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleDeleteCustomDeck = async (id: string, name: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm(`Are you sure you want to delete deck "${name}"?`)) return;
+    try {
+      await deleteReviewList(id);
+      if (onRefreshReviewLists) {
+        onRefreshReviewLists();
+      }
+    } catch (err) {
+      console.error("Failed to delete review deck", err);
     }
   };
 
@@ -293,83 +313,83 @@ export const ShuffleView: React.FC<ShuffleViewProps> = ({
             {companiesAll.length === 0 ? (
               <div className="empty-deck-notice">No companies match your search.</div>
             ) : (
-              companiesAll.map((comp) => (
-                <div key={comp.name} className="deck-card">
-                  <div className="deck-card-body">
-                    <div className="deck-card-top">
-                      <span className="company-badge">🏢 {comp.name}</span>
-                      <span className="deck-problem-count">{comp.problem_count} Problems</span>
+              companiesAll.map((comp) => {
+                const hasBoth = comp.coding_count > 0 && comp.system_design_count > 0;
+                return (
+                  <div key={comp.name} className="deck-card">
+                    <div className="deck-card-body">
+                      <div className="deck-card-top">
+                        <span className="company-badge">🏢 {comp.name}</span>
+                        <span className="deck-problem-count">{comp.problem_count} Questions</span>
+                      </div>
+
+                      <div className="deck-domain-breakdown">
+                        {comp.coding_count > 0 && (
+                          <span className="mini-domain-tag coding-tag">{comp.coding_count} Coding</span>
+                        )}
+                        {comp.system_design_count > 0 && (
+                          <span className="mini-domain-tag design-tag">{comp.system_design_count} System Design</span>
+                        )}
+                      </div>
                     </div>
 
-                    <h3 className="deck-card-title">{comp.name} Full Loop</h3>
-                    <p className="deck-card-desc">Combined algorithms and system design problem set.</p>
+                    <div className="deck-card-actions">
+                      <button
+                        type="button"
+                        className="deck-launch-btn"
+                        onClick={() =>
+                          handleLaunchDeck({
+                            title: `${comp.name} Full Loop`,
+                            subtitle: "Combined Coding & System Design questions",
+                            company: comp.name,
+                            totalCount: comp.problem_count,
+                          })
+                        }
+                      >
+                        {hasBoth ? `Test Loop (${comp.problem_count}) →` : `Start Review (${comp.problem_count}) →`}
+                      </button>
 
-                    <div className="deck-domain-breakdown">
-                      {comp.coding_count > 0 && (
-                        <span className="mini-domain-tag coding-tag">{comp.coding_count} Coding</span>
+                      {hasBoth && comp.coding_count > 0 && (
+                        <button
+                          type="button"
+                          className="track-pill-btn"
+                          onClick={() =>
+                            handleLaunchDeck({
+                              title: `${comp.name} Coding`,
+                              subtitle: "Algorithms & data structures only",
+                              company: comp.name,
+                              categoryId: codingCat?.id,
+                              totalCount: comp.coding_count,
+                            })
+                          }
+                          title="Coding only"
+                        >
+                          <Code size={13} /> {comp.coding_count}
+                        </button>
                       )}
-                      {comp.system_design_count > 0 && (
-                        <span className="mini-domain-tag design-tag">{comp.system_design_count} System Design</span>
+
+                      {hasBoth && comp.system_design_count > 0 && (
+                        <button
+                          type="button"
+                          className="track-pill-btn"
+                          onClick={() =>
+                            handleLaunchDeck({
+                              title: `${comp.name} System Design`,
+                              subtitle: "Architecture & distributed systems only",
+                              company: comp.name,
+                              categoryId: sysDesignCat?.id,
+                              totalCount: comp.system_design_count,
+                            })
+                          }
+                          title="System Design only"
+                        >
+                          <Cpu size={13} /> {comp.system_design_count}
+                        </button>
                       )}
                     </div>
                   </div>
-
-                  <div className="deck-card-actions">
-                    <button
-                      type="button"
-                      className="primary-action-btn deck-launch-btn"
-                      onClick={() =>
-                        handleLaunchDeck({
-                          title: `${comp.name} Full Loop`,
-                          subtitle: "Combined Coding & System Design questions",
-                          company: comp.name,
-                          totalCount: comp.problem_count,
-                        })
-                      }
-                    >
-                      Test All ({comp.problem_count})
-                    </button>
-
-                    {comp.coding_count > 0 && (
-                      <button
-                        type="button"
-                        className="track-pill-btn"
-                        onClick={() =>
-                          handleLaunchDeck({
-                            title: `${comp.name} Coding`,
-                            subtitle: "Algorithms & data structures only",
-                            company: comp.name,
-                            categoryId: codingCat?.id,
-                            totalCount: comp.coding_count,
-                          })
-                        }
-                        title="Coding only"
-                      >
-                        <Code size={13} /> {comp.coding_count}
-                      </button>
-                    )}
-
-                    {comp.system_design_count > 0 && (
-                      <button
-                        type="button"
-                        className="track-pill-btn"
-                        onClick={() =>
-                          handleLaunchDeck({
-                            title: `${comp.name} System Design`,
-                            subtitle: "Architecture & distributed systems only",
-                            company: comp.name,
-                            categoryId: sysDesignCat?.id,
-                            totalCount: comp.system_design_count,
-                          })
-                        }
-                        title="System Design only"
-                      >
-                        <Cpu size={13} /> {comp.system_design_count}
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         )}
@@ -384,18 +404,15 @@ export const ShuffleView: React.FC<ShuffleViewProps> = ({
                 <div key={comp.name} className="deck-card">
                   <div className="deck-card-body">
                     <div className="deck-card-top">
-                      <span className="badge category-badge">Coding Track</span>
-                      <span className="deck-problem-count">{comp.coding_count} Problems</span>
+                      <span className="company-badge">🏢 {comp.name}</span>
+                      <span className="mini-domain-tag coding-tag">{comp.coding_count} Problems</span>
                     </div>
-
-                    <h3 className="deck-card-title">{comp.name} Coding</h3>
-                    <p className="deck-card-desc">Algorithms, data structures, and implementation challenges.</p>
                   </div>
 
                   <div className="deck-card-actions">
                     <button
                       type="button"
-                      className="primary-action-btn deck-launch-btn"
+                      className="deck-launch-btn"
                       onClick={() =>
                         handleLaunchDeck({
                           title: `${comp.name} Coding Track`,
@@ -406,7 +423,7 @@ export const ShuffleView: React.FC<ShuffleViewProps> = ({
                         })
                       }
                     >
-                      Start Coding Shuffle ({comp.coding_count}) →
+                      Start Coding ({comp.coding_count}) →
                     </button>
                   </div>
                 </div>
@@ -425,18 +442,15 @@ export const ShuffleView: React.FC<ShuffleViewProps> = ({
                 <div key={comp.name} className="deck-card">
                   <div className="deck-card-body">
                     <div className="deck-card-top">
-                      <span className="badge system-design-badge">System Design</span>
-                      <span className="deck-problem-count">{comp.system_design_count} Problems</span>
+                      <span className="company-badge">🏢 {comp.name}</span>
+                      <span className="mini-domain-tag design-tag">{comp.system_design_count} Problems</span>
                     </div>
-
-                    <h3 className="deck-card-title">{comp.name} System Design</h3>
-                    <p className="deck-card-desc">Scalability, caching, distributed storage, and trade-offs.</p>
                   </div>
 
                   <div className="deck-card-actions">
                     <button
                       type="button"
-                      className="primary-action-btn deck-launch-btn"
+                      className="deck-launch-btn"
                       onClick={() =>
                         handleLaunchDeck({
                           title: `${comp.name} System Design Track`,
@@ -447,7 +461,7 @@ export const ShuffleView: React.FC<ShuffleViewProps> = ({
                         })
                       }
                     >
-                      Start System Design Shuffle ({comp.system_design_count}) →
+                      Start System Design ({comp.system_design_count}) →
                     </button>
                   </div>
                 </div>
@@ -463,7 +477,7 @@ export const ShuffleView: React.FC<ShuffleViewProps> = ({
               <div className="empty-deck-notice">
                 <p>No custom saved decks created yet.</p>
                 <span className="empty-deck-subtext">
-                  Create targeted custom lists in the <strong>Company Lists</strong> tab anytime.
+                  Create targeted custom lists anytime by selecting problems in the <strong>Problems</strong> tab.
                 </span>
               </div>
             ) : (
@@ -471,22 +485,21 @@ export const ShuffleView: React.FC<ShuffleViewProps> = ({
                 <div key={rl.id} className="deck-card custom-deck-highlight">
                   <div className="deck-card-body">
                     <div className="deck-card-top">
-                      <span className="badge stats-badge">📦 Custom Saved Deck</span>
+                      <div className="custom-deck-meta-left">
+                        <span className="badge stats-badge">📦 Custom Deck</span>
+                        {rl.company && <span className="company-badge">🏢 {rl.company}</span>}
+                      </div>
                       <span className="deck-problem-count">{rl.problem_count} Problems</span>
                     </div>
 
-                    <div className="custom-deck-header-row">
-                      <h3 className="deck-card-title">{rl.name}</h3>
-                      {rl.company && <span className="company-badge">🏢 {rl.company}</span>}
-                    </div>
-
+                    <h3 className="deck-card-title">{rl.name}</h3>
                     {rl.description && <p className="deck-card-desc">{rl.description}</p>}
                   </div>
 
                   <div className="deck-card-actions">
                     <button
                       type="button"
-                      className="primary-action-btn deck-launch-btn"
+                      className="deck-launch-btn"
                       onClick={() =>
                         handleLaunchDeck({
                           title: rl.name,
@@ -498,6 +511,15 @@ export const ShuffleView: React.FC<ShuffleViewProps> = ({
                       }
                     >
                       Test Deck ({rl.problem_count}) →
+                    </button>
+
+                    <button
+                      type="button"
+                      className="icon-delete-deck-btn"
+                      onClick={(e) => handleDeleteCustomDeck(rl.id, rl.name, e)}
+                      title="Delete saved deck"
+                    >
+                      <Trash2 size={14} />
                     </button>
                   </div>
                 </div>
@@ -514,60 +536,61 @@ export const ShuffleView: React.FC<ShuffleViewProps> = ({
   // -------------------------------------------------------------
   return (
     <div className="shuffle-container">
-      {/* Dedicated Session Header with 'Back to Decks Hub' */}
-      <div className="shuffle-header active-session-header">
-        <div className="session-left-meta">
+      {/* Streamlined Session Breadcrumb Header */}
+      <div className="shuffle-header active-session-breadcrumb-bar">
+        <div className="session-breadcrumb-left">
           <button
             type="button"
-            className="secondary-action-btn back-to-decks-btn"
+            className="breadcrumb-back-btn"
             onClick={handleExitDeck}
             title="Return to Decks Hub"
           >
-            <ArrowLeft size={16} /> Back to Decks Hub
+            <ArrowLeft size={13} />
+            <span>Decks</span>
           </button>
 
-          <div className="session-scope-info">
-            <div className="session-scope-title-row">
-              <span className="session-badge">Active Deck</span>
-              <h2 className="session-deck-title">{activeDeck.title}</h2>
-              {activeDeck.company && (
-                <span className="company-badge">🏢 {activeDeck.company}</span>
-              )}
-            </div>
-            {activeDeck.subtitle && (
-              <span className="session-scope-desc">{activeDeck.subtitle}</span>
-            )}
-          </div>
+          <span className="breadcrumb-divider">/</span>
+
+          <span className="breadcrumb-deck-title" title={activeDeck.title}>
+            {activeDeck.title}
+          </span>
+
+          {completedCount > 0 && (
+            <span className="session-reviewed-badge" title="Problems reviewed in this session">
+              ✓ {completedCount}
+            </span>
+          )}
         </div>
 
-        <div className="session-right-actions">
-          <div className="mode-toggle">
+        <div className="session-breadcrumb-right">
+          <div className="compact-mode-toggle">
             <button
               type="button"
-              className={`tab-btn ${mode === "cadence" ? "active" : ""}`}
-              onClick={() => setMode("cadence")}
+              className={`compact-mode-btn ${mode === "cadence" ? "active" : ""}`}
+              onClick={() => handleModeChange("cadence")}
               title="Prioritize unreviewed and recently failed problems"
             >
-              <Sparkles size={14} /> Priority
+              Priority
             </button>
             <button
               type="button"
-              className={`tab-btn ${mode === "pure_random" ? "active" : ""}`}
-              onClick={() => setMode("pure_random")}
+              className={`compact-mode-btn ${mode === "pure_random" ? "active" : ""}`}
+              onClick={() => handleModeChange("pure_random")}
               title="Uniform random sampling"
             >
-              <Shuffle size={14} /> Random
+              Random
             </button>
           </div>
 
           <button
             type="button"
-            className="secondary-action-btn reshuffle-btn"
+            className="compact-reshuffle-btn"
             onClick={() => loadDeckBatch()}
             disabled={loading}
             title="Reshuffle problems in this deck"
           >
-            <RotateCw size={14} className={loading ? "spin" : ""} /> Reshuffle
+            <RotateCw size={12} className={loading ? "spin" : ""} />
+            <span>Reshuffle</span>
           </button>
         </div>
       </div>
@@ -590,51 +613,18 @@ export const ShuffleView: React.FC<ShuffleViewProps> = ({
           </button>
         </div>
       ) : (
-        <>
-          <ProblemFlashcard
-            key={currentProblem.id}
-            problem={currentProblem}
-            categoryName={getCategoryName(currentProblem.category_id)}
-            counterText={`Card ${currentIndex + 1} of ${problems.length}`}
-            onRating={handleRating}
-            submitting={submitting}
-            onPrev={handlePrev}
-            onNext={handleNext}
-            hasPrev={currentIndex > 0}
-            hasNext={currentIndex < problems.length - 1}
-          />
-
-          {/* Bottom Session Navigation Bar */}
-          <div className="shuffle-nav-bar">
-            <button
-              type="button"
-              className="secondary-action-btn shuffle-nav-btn"
-              onClick={handlePrev}
-              disabled={currentIndex === 0}
-              title="Previous problem (←)"
-            >
-              <ChevronLeft size={16} /> Previous Problem
-            </button>
-
-            <div className="shuffle-nav-status">
-              <span>
-                Card <strong>{currentIndex + 1}</strong> of <strong>{problems.length}</strong>
-              </span>
-              <span className="dot-separator">•</span>
-              <span>{completedCount} reviewed this session</span>
-            </div>
-
-            <button
-              type="button"
-              className="secondary-action-btn shuffle-nav-btn"
-              onClick={handleNext}
-              disabled={currentIndex >= problems.length - 1}
-              title="Next problem (→)"
-            >
-              Next Problem <ChevronRight size={16} />
-            </button>
-          </div>
-        </>
+        <ProblemFlashcard
+          key={currentProblem.id}
+          problem={currentProblem}
+          categoryName={getCategoryName(currentProblem.category_id)}
+          counterText={`Card ${currentIndex + 1} of ${problems.length}`}
+          onRating={handleRating}
+          submitting={submitting}
+          onPrev={handlePrev}
+          onNext={handleNext}
+          hasPrev={currentIndex > 0}
+          hasNext={currentIndex < problems.length - 1}
+        />
       )}
     </div>
   );
