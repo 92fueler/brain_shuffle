@@ -99,6 +99,23 @@ export interface BackupPayload {
         reviewed_at: string;
       }[];
     }[];
+    subtexts?: {
+      title: string;
+      original_text: string;
+      subtext: string;
+      tags: string[];
+      cadence?: string;
+      review_count: number;
+      retention_score: number;
+      last_reviewed_at?: string | null;
+      next_review_due?: string | null;
+      review_logs?: {
+        rating: string;
+        time_spent_seconds?: number | null;
+        reflection?: string | null;
+        reviewed_at: string;
+      }[];
+    }[];
   }[];
   review_lists?: {
     name: string;
@@ -113,3 +130,62 @@ export const isProblemCategory = (slug?: string | null): boolean => {
   const s = slug.toLowerCase();
   return s === "coding" || s.startsWith("system_design") || s.startsWith("system-design");
 };
+
+export interface Subtext {
+  id: string;
+  category_id: string;
+  title: string;
+  original_text: string;
+  subtext: string;
+  tags: string[];
+  cadence: string;
+  review_count: number;
+  retention_score: number;
+  last_reviewed_at?: string | null;
+  next_review_due?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SubtextCreatePayload {
+  category_id: string;
+  title: string;
+  original_text: string;
+  subtext: string;
+  tags?: string[];
+  cadence?: string;
+}
+
+export interface SubtextUpdatePayload {
+  category_id?: string;
+  title?: string;
+  original_text?: string;
+  subtext?: string;
+  tags?: string[];
+  cadence?: string;
+}
+
+export const isSubtextCategory = (slug?: string | null): boolean => {
+  if (!slug) return false;
+  const s = slug.toLowerCase();
+  return (
+    s === "subtext" ||
+    s.startsWith("subtext") ||
+    s === "idiom" ||
+    s.startsWith("idiom") ||
+    s === "phrase" ||
+    s.startsWith("phrase") ||
+    s === "vocabulary" ||
+    s === "vocab" ||
+    s.startsWith("vocab") ||
+    s === "cinema" ||
+    s.startsWith("cinema") ||
+    s === "dialogue" ||
+    s.startsWith("dialogue") ||
+    s === "conversation" ||
+    s.startsWith("conversation") ||
+    s === "news" ||
+    s.startsWith("news")
+  );
+};
+

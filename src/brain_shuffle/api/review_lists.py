@@ -19,7 +19,7 @@ def list_review_lists(session: Session = Depends(get_session)) -> List[ReviewLis
         links = session.exec(
             select(ReviewListProblemLink).where(ReviewListProblemLink.review_list_id == rl.id)
         ).all()
-        problem_ids = [l.problem_id for l in links]
+        problem_ids = [link.problem_id for link in links]
         result.append(
             ReviewListRead(
                 id=rl.id,
@@ -77,7 +77,7 @@ def get_review_list(list_id: uuid.UUID, session: Session = Depends(get_session))
     links = session.exec(
         select(ReviewListProblemLink).where(ReviewListProblemLink.review_list_id == rl.id)
     ).all()
-    problem_ids = [l.problem_id for l in links]
+    problem_ids = [link.problem_id for link in links]
     problems = []
     if problem_ids:
         problem_records = session.exec(select(Problem).where(Problem.id.in_(problem_ids))).all()

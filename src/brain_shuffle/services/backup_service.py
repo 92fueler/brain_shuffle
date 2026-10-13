@@ -9,10 +9,12 @@ from brain_shuffle.models.category import Category
 from brain_shuffle.models.problem import Problem
 from brain_shuffle.models.review_log import ReviewLog
 from brain_shuffle.models.review_list import ReviewList, ReviewListProblemLink
+from brain_shuffle.models.subtext import Subtext, SubtextReviewLog
 from brain_shuffle.schemas.backup import (
     BackupPayload,
     BackupCategory,
     BackupProblem,
+    BackupSubtext,
     BackupReviewLog,
     BackupReviewList,
 )
@@ -39,12 +41,12 @@ class BackupService:
                 ).all()
                 backup_logs = [
                     BackupReviewLog(
-                        rating=l.rating,
-                        time_spent_seconds=l.time_spent_seconds,
-                        reflection=l.reflection,
-                        reviewed_at=l.reviewed_at,
+                        rating=log_item.rating,
+                        time_spent_seconds=log_item.time_spent_seconds,
+                        reflection=log_item.reflection,
+                        reviewed_at=log_item.reviewed_at,
                     )
-                    for l in logs
+                    for log_item in logs
                 ]
                 backup_problems.append(
                     BackupProblem(
@@ -62,12 +64,46 @@ class BackupService:
                     )
                 )
 
+            # Export subtexts
+            subtexts = self.session.exec(
+                select(Subtext).where(Subtext.category_id == cat.id)
+            ).all()
+            backup_subtexts: List[BackupSubtext] = []
+            for sub in subtexts:
+                sub_logs = self.session.exec(
+                    select(SubtextReviewLog).where(SubtextReviewLog.subtext_id == sub.id)
+                ).all()
+                backup_sub_logs = [
+                    BackupReviewLog(
+                        rating=log_item.rating,
+                        time_spent_seconds=log_item.time_spent_seconds,
+                        reflection=log_item.reflection,
+                        reviewed_at=log_item.reviewed_at,
+                    )
+                    for log_item in sub_logs
+                ]
+                backup_subtexts.append(
+                    BackupSubtext(
+                        title=sub.title,
+                        original_text=sub.original_text,
+                        subtext=sub.subtext,
+                        tags=sub.tags or [],
+                        cadence=sub.cadence,
+                        review_count=sub.review_count,
+                        retention_score=sub.retention_score,
+                        last_reviewed_at=sub.last_reviewed_at,
+                        next_review_due=sub.next_review_due,
+                        review_logs=backup_sub_logs,
+                    )
+                )
+
             backup_categories.append(
                 BackupCategory(
                     slug=cat.slug,
                     name=cat.name,
                     description=cat.description,
                     problems=backup_problems,
+                    subtexts=backup_subtexts,
                 )
             )
 
@@ -160,8 +196,8 @@ class BackupService:
 
                 # Restore logs idempotently (avoid duplicate logs on repeat imports)
                 existing_log_dates = {
-                    l.reviewed_at
-                    for l in self.session.exec(
+                    log_item.reviewed_at
+                    for log_item in self.session.exec(
                         select(ReviewLog).where(ReviewLog.problem_id == problem.id)
                     ).all()
                 }
@@ -178,6 +214,61 @@ class BackupService:
                         existing_log_dates.add(log_data.reviewed_at)
 
                 imported_problems_count += 1
+
+            for sub_data in getattr(cat_data, "subtexts", []):
+                subtext = self.session.exec(
+                    select(Subtext)
+                    .where(Subtext.category_id == cat.id)
+                    .where(Subtext.title == sub_data.title)
+                ).first()
+
+                if not subtext:
+                    subtext = Subtext(
+                        category_id=cat.id,
+                        title=sub_data.title,
+                        original_text=sub_data.original_text,
+                        subtext=sub_data.subtext,
+                        tags=sub_data.tags,
+                        cadence=getattr(sub_data, "cadence", "weekly") or "weekly",
+                        review_count=sub_data.review_count,
+                        retention_score=sub_data.retention_score,
+                        last_reviewed_at=sub_data.last_reviewed_at,
+                        next_review_due=sub_data.next_review_due,
+                    )
+                    self.session.add(subtext)
+                    self.session.commit()
+                    self.session.refresh(subtext)
+                else:
+                    subtext.original_text = sub_data.original_text
+                    subtext.subtext = sub_data.subtext
+                    subtext.tags = sub_data.tags
+                    if getattr(sub_data, "cadence", None):
+                        subtext.cadence = sub_data.cadence
+                    subtext.review_count = sub_data.review_count
+                    subtext.retention_score = sub_data.retention_score
+                    subtext.last_reviewed_at = sub_data.last_reviewed_at
+                    subtext.next_review_due = sub_data.next_review_due
+                    self.session.add(subtext)
+                    self.session.commit()
+
+                # Restore subtext logs idempotently
+                existing_sub_log_dates = {
+                    log_item.reviewed_at
+                    for log_item in self.session.exec(
+                        select(SubtextReviewLog).where(SubtextReviewLog.subtext_id == subtext.id)
+                    ).all()
+                }
+                for log_data in sub_data.review_logs:
+                    if log_data.reviewed_at not in existing_sub_log_dates:
+                        sub_log = SubtextReviewLog(
+                            subtext_id=subtext.id,
+                            rating=log_data.rating,
+                            time_spent_seconds=log_data.time_spent_seconds,
+                            reflection=log_data.reflection,
+                            reviewed_at=log_data.reviewed_at,
+                        )
+                        self.session.add(sub_log)
+                        existing_sub_log_dates.add(log_data.reviewed_at)
 
         # Restore review lists
         for rl_data in getattr(payload, "review_lists", []):

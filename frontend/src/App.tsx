@@ -1,16 +1,25 @@
 import { useState, useEffect } from "react";
-import type { Category, Problem, CompanyStat, ReviewList } from "./types";
-import { fetchCategories, fetchProblems, fetchCompanies, fetchReviewLists } from "./api";
+import type { Category, Problem, CompanyStat, ReviewList, Subtext } from "./types";
+import {
+  fetchCategories,
+  fetchProblems,
+  fetchCompanies,
+  fetchReviewLists,
+  fetchSubtexts,
+} from "./api";
 import { ShuffleView } from "./components/ShuffleView";
 import { ProblemManager } from "./components/ProblemManager";
 import { BackupManager } from "./components/BackupManager";
 import { Shuffle, BookOpen, Database, Brain } from "lucide-react";
 import "./App.css";
 
+type AppTab = "drills" | "entries" | "backups";
+
 export function App() {
-  const [activeTab, setActiveTab] = useState<"shuffle" | "problems" | "backup">("shuffle");
+  const [activeTab, setActiveTab] = useState<AppTab>("drills");
   const [categories, setCategories] = useState<Category[]>([]);
   const [problems, setProblems] = useState<Problem[]>([]);
+  const [subtexts, setSubtexts] = useState<Subtext[]>([]);
   const [companies, setCompanies] = useState<CompanyStat[]>([]);
   const [reviewLists, setReviewLists] = useState<ReviewList[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -23,16 +32,18 @@ export function App() {
 
   const refreshData = async () => {
     try {
-      const [cats, probs, comps, lists] = await Promise.all([
+      const [cats, probs, comps, lists, subs] = await Promise.all([
         fetchCategories(),
         fetchProblems(),
         fetchCompanies(),
         fetchReviewLists(),
+        fetchSubtexts(),
       ]);
       setCategories(cats);
       setProblems(probs);
       setCompanies(comps);
       setReviewLists(lists);
+      setSubtexts(subs);
     } catch (err) {
       console.error("Failed to fetch initial data", err);
     }
@@ -50,7 +61,7 @@ export function App() {
   ) => {
     setActiveReviewList({ id: reviewListId, name, company, problem_count });
     setSelectedCategory(null);
-    setActiveTab("shuffle");
+    setActiveTab("drills");
   };
 
   return (
@@ -69,25 +80,25 @@ export function App() {
 
           <nav className="nav-tabs">
             <button
-              className={`nav-tab ${activeTab === "shuffle" ? "active" : ""}`}
-              onClick={() => setActiveTab("shuffle")}
+              className={`nav-tab ${activeTab === "drills" ? "active" : ""}`}
+              onClick={() => setActiveTab("drills")}
             >
               <Shuffle size={16} />
-              <span>Shuffle Test</span>
+              <span>Drills</span>
             </button>
             <button
-              className={`nav-tab ${activeTab === "problems" ? "active" : ""}`}
-              onClick={() => setActiveTab("problems")}
+              className={`nav-tab ${activeTab === "entries" ? "active" : ""}`}
+              onClick={() => setActiveTab("entries")}
             >
               <BookOpen size={16} />
-              <span>Problems ({problems.length})</span>
+              <span>Entries ({problems.length + subtexts.length})</span>
             </button>
             <button
-              className={`nav-tab ${activeTab === "backup" ? "active" : ""}`}
-              onClick={() => setActiveTab("backup")}
+              className={`nav-tab ${activeTab === "backups" ? "active" : ""}`}
+              onClick={() => setActiveTab("backups")}
             >
               <Database size={16} />
-              <span>Backup & Recovery</span>
+              <span>Backups</span>
             </button>
           </nav>
         </div>
@@ -95,11 +106,12 @@ export function App() {
 
       <main className="app-main">
         <div className="app-main-container">
-          {activeTab === "shuffle" && (
+          {activeTab === "drills" && (
             <ShuffleView
               categories={categories}
               companies={companies}
               allProblems={problems}
+              subtexts={subtexts}
               reviewLists={reviewLists}
               activeReviewList={activeReviewList}
               onClearReviewList={() => setActiveReviewList(null)}
@@ -107,10 +119,11 @@ export function App() {
             />
           )}
 
-          {activeTab === "problems" && (
+          {activeTab === "entries" && (
             <ProblemManager
               categories={categories}
               problems={problems}
+              subtexts={subtexts}
               onRefresh={refreshData}
               selectedCategory={selectedCategory}
               onSelectCategory={setSelectedCategory}
@@ -118,7 +131,7 @@ export function App() {
             />
           )}
 
-          {activeTab === "backup" && (
+          {activeTab === "backups" && (
             <BackupManager onRefresh={refreshData} />
           )}
         </div>

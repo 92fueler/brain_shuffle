@@ -5,6 +5,7 @@ from sqlmodel import Field, Relationship, SQLModel
 
 if TYPE_CHECKING:
     from brain_shuffle.models.problem import Problem
+    from brain_shuffle.models.subtext import Subtext
 
 
 class Category(SQLModel, table=True):
@@ -17,3 +18,4 @@ class Category(SQLModel, table=True):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     problems: List["Problem"] = Relationship(back_populates="category")
+    subtexts: List["Subtext"] = Relationship(back_populates="category")

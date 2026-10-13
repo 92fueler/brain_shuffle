@@ -24,11 +24,25 @@ class BackupProblem(BaseModel):
     review_logs: List[BackupReviewLog] = []
 
 
+class BackupSubtext(BaseModel):
+    title: str
+    original_text: str
+    subtext: str
+    tags: List[str] = []
+    cadence: str = "weekly"
+    review_count: int = 0
+    retention_score: float = 1.0
+    last_reviewed_at: Optional[datetime] = None
+    next_review_due: Optional[datetime] = None
+    review_logs: List[BackupReviewLog] = []
+
+
 class BackupCategory(BaseModel):
     slug: str
     name: str
     description: Optional[str] = None
     problems: List[BackupProblem] = []
+    subtexts: List[BackupSubtext] = []
 
 
 class BackupReviewList(BaseModel):

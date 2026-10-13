@@ -1,9 +1,16 @@
 import React, { useState, useEffect } from "react";
-import type { Category, Problem, CompanyStat, ReviewAction, ReviewList } from "../types";
-import { isProblemCategory } from "../types";
+import type { Category, Problem, CompanyStat, ReviewAction, ReviewList, Subtext } from "../types";
+import { isProblemCategory, isSubtextCategory } from "../types";
 import { formatCategoryName, getCategoryTheme } from "../categoryTheme";
-import { fetchShuffleBatch, submitReview, deleteReviewList } from "../api";
+import {
+  fetchShuffleBatch,
+  submitReview,
+  deleteReviewList,
+  fetchSubtextShuffleBatch,
+  submitSubtextReview,
+} from "../api";
 import { ProblemFlashcard } from "./ProblemFlashcard";
+import { SubtextFlashcard } from "./SubtextFlashcard";
 import {
   Shuffle,
   RotateCw,
@@ -16,6 +23,7 @@ import {
   Search,
   Trash2,
   BookOpen,
+  Sparkles,
 } from "lucide-react";
 
 interface ActiveDeckConfig {
@@ -25,14 +33,16 @@ interface ActiveDeckConfig {
   categoryId?: string | null;
   reviewListId?: string | null;
   totalCount?: number;
+  isSubtext?: boolean;
 }
 
-type ChannelTab = "topics" | "company-all" | "coding-only" | "sysdesign-only" | "custom-decks";
+type ChannelTab = "topics" | "subtext" | "company-all" | "coding-only" | "sysdesign-only" | "custom-decks";
 
 interface ShuffleViewProps {
   categories: Category[];
   companies: CompanyStat[];
   allProblems?: Problem[];
+  subtexts?: Subtext[];
   reviewLists?: ReviewList[];
   activeReviewList: {
     id: string;
@@ -48,6 +58,7 @@ export const ShuffleView: React.FC<ShuffleViewProps> = ({
   categories,
   companies,
   allProblems = [],
+  subtexts = [],
   reviewLists = [],
   activeReviewList,
   onClearReviewList,
@@ -58,6 +69,7 @@ export const ShuffleView: React.FC<ShuffleViewProps> = ({
   const [searchQuery, setSearchQuery] = useState<string>("");
 
   const [problems, setProblems] = useState<Problem[]>([]);
+  const [subtextBatch, setSubtextBatch] = useState<Subtext[]>([]);
   const [currentIndex, setCurrentIndex] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(false);
   const [mode, setMode] = useState<"cadence" | "pure_random">("cadence");
@@ -77,6 +89,25 @@ export const ShuffleView: React.FC<ShuffleViewProps> = ({
     if (!target) return;
 
     const effectiveMode = overrideMode || mode;
+
+    if (target.isSubtext) {
+      setLoading(true);
+      try {
+        const batch = await fetchSubtextShuffleBatch({
+          categoryId: target.categoryId || undefined,
+          limit: 20,
+          mode: effectiveMode,
+        });
+        setSubtextBatch(batch);
+        setCurrentIndex(0);
+      } catch (err) {
+        console.error("Failed to load subtext batch", err);
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
     setLoading(true);
     try {
       const batch = await fetchShuffleBatch({
@@ -93,6 +124,27 @@ export const ShuffleView: React.FC<ShuffleViewProps> = ({
       console.error("Failed to load deck batch", err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSubtextRating = async (action: ReviewAction) => {
+    const current = subtextBatch[currentIndex];
+    if (!current) return;
+
+    setSubmitting(true);
+    try {
+      await submitSubtextReview(current.id, { rating: action });
+      setCompletedCount((prev) => prev + 1);
+
+      if (currentIndex < subtextBatch.length - 1) {
+        setCurrentIndex((prev) => prev + 1);
+      } else {
+        await loadDeckBatch(activeDeck);
+      }
+    } catch (err) {
+      console.error("Failed to submit subtext review", err);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -132,15 +184,16 @@ export const ShuffleView: React.FC<ShuffleViewProps> = ({
       ) {
         return;
       }
+      const maxIdx = activeDeck.isSubtext ? subtextBatch.length - 1 : problems.length - 1;
       if (e.key === "ArrowLeft" && currentIndex > 0) {
         setCurrentIndex((i) => i - 1);
-      } else if (e.key === "ArrowRight" && currentIndex < problems.length - 1) {
+      } else if (e.key === "ArrowRight" && currentIndex < maxIdx) {
         setCurrentIndex((i) => i + 1);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [activeDeck, currentIndex, problems.length]);
+  }, [activeDeck, currentIndex, problems.length, subtextBatch.length]);
 
   const handleLaunchDeck = (config: ActiveDeckConfig) => {
     setActiveDeck(config);
@@ -152,6 +205,7 @@ export const ShuffleView: React.FC<ShuffleViewProps> = ({
     setActiveDeck(null);
     onClearReviewList();
     setProblems([]);
+    setSubtextBatch([]);
     setCurrentIndex(0);
   };
 
@@ -162,7 +216,8 @@ export const ShuffleView: React.FC<ShuffleViewProps> = ({
   };
 
   const handleNext = () => {
-    if (currentIndex < problems.length - 1) {
+    const maxIdx = activeDeck?.isSubtext ? subtextBatch.length - 1 : problems.length - 1;
+    if (currentIndex < maxIdx) {
       setCurrentIndex((i) => i + 1);
     }
   };
@@ -273,8 +328,19 @@ export const ShuffleView: React.FC<ShuffleViewProps> = ({
               className={`hub-tab-btn ${activeChannel === "topics" ? "active" : ""}`}
               onClick={() => setActiveChannel("topics")}
             >
-              <BookOpen size={16} /> Topics & Categories
-              <span className="hub-tab-count">{categories.length}</span>
+              <BookOpen size={16} /> Work Topics
+              <span className="hub-tab-count">
+                {categories.filter((c) => !isSubtextCategory(c.slug)).length}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              className={`hub-tab-btn ${activeChannel === "subtext" ? "active" : ""}`}
+              onClick={() => setActiveChannel("subtext")}
+            >
+              <Sparkles size={16} /> Subtext & Language
+              <span className="hub-tab-count">{subtexts.length}</span>
             </button>
 
             <button
@@ -332,9 +398,10 @@ export const ShuffleView: React.FC<ShuffleViewProps> = ({
             {categories
               .filter(
                 (c) =>
-                  !query ||
-                  c.name.toLowerCase().includes(query) ||
-                  c.slug.toLowerCase().includes(query)
+                  !isSubtextCategory(c.slug) &&
+                  (!query ||
+                    c.name.toLowerCase().includes(query) ||
+                    c.slug.toLowerCase().includes(query))
               )
               .map((cat) => {
                 const count = allProblems.filter((p) => p.category_id === cat.id).length;
@@ -381,6 +448,118 @@ export const ShuffleView: React.FC<ShuffleViewProps> = ({
                             subtitle: `Review all cards in ${displayName}`,
                             categoryId: cat.id,
                             totalCount: count,
+                          })
+                        }
+                        disabled={count === 0}
+                      >
+                        {count === 0 ? "Empty Deck" : `Review Deck (${count}) →`}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        )}
+
+        {/* CHANNEL: SUBTEXT & LANGUAGE */}
+        {activeChannel === "subtext" && (
+          <div className="deck-grid">
+            {/* Global Master Deck */}
+            <div className="deck-card">
+              <div className="deck-card-body">
+                <div className="deck-card-top">
+                  <span
+                    className="company-badge"
+                    style={{
+                      color: "#8b5cf6",
+                      backgroundColor: "rgba(139, 92, 246, 0.12)",
+                      borderColor: "rgba(139, 92, 246, 0.3)",
+                    }}
+                  >
+                    ✨ Master Deck
+                  </span>
+                  <span className="deck-problem-count">
+                    {subtexts.length} {subtexts.length === 1 ? "Entry" : "Entries"}
+                  </span>
+                </div>
+                <h3 className="deck-card-title">All Subtexts & Idioms</h3>
+                <p className="deck-card-desc">
+                  Active recall shuffle across all conversational subtexts, idioms, semantic clusters, and cultural nuances.
+                </p>
+              </div>
+              <div className="deck-card-actions">
+                <button
+                  type="button"
+                  className="deck-launch-btn"
+                  onClick={() =>
+                    handleLaunchDeck({
+                      title: "All Subtext & Language",
+                      subtitle: "Full cross-topic subtext and idiom drill",
+                      totalCount: subtexts.length,
+                      isSubtext: true,
+                    })
+                  }
+                  disabled={subtexts.length === 0}
+                >
+                  {subtexts.length === 0 ? "Empty Deck" : `Review Deck (${subtexts.length}) →`}
+                </button>
+              </div>
+            </div>
+
+            {/* Individual Subtext Categories */}
+            {categories
+              .filter((c) => {
+                const count = subtexts.filter((s) => s.category_id === c.id).length;
+                return (
+                  (isSubtextCategory(c.slug) || count > 0) &&
+                  (!query || c.name.toLowerCase().includes(query) || c.slug.toLowerCase().includes(query))
+                );
+              })
+              .map((cat) => {
+                const count = subtexts.filter((s) => s.category_id === cat.id).length;
+                const theme = getCategoryTheme(cat.slug || cat.name);
+                const displayName = formatCategoryName(cat.name);
+
+                return (
+                  <div key={cat.id} className="deck-card">
+                    <div className="deck-card-body">
+                      <div className="deck-card-top">
+                        <span
+                          className="company-badge"
+                          style={{
+                            color: theme.color,
+                            backgroundColor: theme.bg,
+                            borderColor: theme.border,
+                          }}
+                        >
+                          💬 Subtext Track
+                        </span>
+                        <span className="deck-problem-count">
+                          {count} {count === 1 ? "Entry" : "Entries"}
+                        </span>
+                      </div>
+
+                      <h3 className="deck-card-title">{displayName}</h3>
+                      {cat.description ? (
+                        <p className="deck-card-desc">{cat.description}</p>
+                      ) : (
+                        <p className="deck-card-desc">
+                          Subtext, idioms, and contextual interpretations.
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="deck-card-actions">
+                      <button
+                        type="button"
+                        className="deck-launch-btn"
+                        onClick={() =>
+                          handleLaunchDeck({
+                            title: `${displayName} Subtext Deck`,
+                            subtitle: `Review subtext entries in ${displayName}`,
+                            categoryId: cat.id,
+                            totalCount: count,
+                            isSubtext: true,
                           })
                         }
                         disabled={count === 0}
@@ -684,8 +863,37 @@ export const ShuffleView: React.FC<ShuffleViewProps> = ({
 
       {loading ? (
         <div className="card loading-card">
-          <p>Loading problems for {activeDeck.title}...</p>
+          <p>Loading {activeDeck.isSubtext ? "subtexts" : "problems"} for {activeDeck.title}...</p>
         </div>
+      ) : activeDeck.isSubtext ? (
+        subtextBatch.length === 0 || !subtextBatch[currentIndex] ? (
+          <div className="card empty-card">
+            <AlertCircle size={40} className="muted-icon" />
+            <h3>No subtext entries found in this deck</h3>
+            <p>This deck has no subtext entries assigned or matching filters.</p>
+            <button
+              type="button"
+              className="primary-action-btn mt-3"
+              onClick={handleExitDeck}
+            >
+              <ArrowLeft size={16} /> Return to Decks Hub
+            </button>
+          </div>
+        ) : (
+          <SubtextFlashcard
+            key={subtextBatch[currentIndex].id}
+            subtext={subtextBatch[currentIndex]}
+            categoryName={getCategoryName(subtextBatch[currentIndex].category_id)}
+            categorySlug={getCategorySlug(subtextBatch[currentIndex].category_id)}
+            counterText={`Card ${currentIndex + 1} of ${subtextBatch.length}`}
+            onRating={handleSubtextRating}
+            submitting={submitting}
+            onPrev={handlePrev}
+            onNext={handleNext}
+            hasPrev={currentIndex > 0}
+            hasNext={currentIndex < subtextBatch.length - 1}
+          />
+        )
       ) : !currentProblem ? (
         <div className="card empty-card">
           <AlertCircle size={40} className="muted-icon" />

@@ -7,6 +7,9 @@ import type {
   ReviewList,
   ReviewListCreatePayload,
   BackupPayload,
+  Subtext,
+  SubtextCreatePayload,
+  SubtextUpdatePayload,
 } from "./types";
 
 const BASE_URL = "/api";
@@ -219,4 +222,90 @@ export async function restoreSnapshot(): Promise<{ status: string; restored_prob
   if (!res.ok) throw new Error("Failed to restore snapshot");
   return res.json();
 }
+
+// Subtext API functions
+export async function fetchSubtexts(params?: {
+  category_id?: string;
+  tag?: string;
+  search?: string;
+}): Promise<Subtext[]> {
+  const query = new URLSearchParams();
+  if (params?.category_id) query.append("category_id", params.category_id);
+  if (params?.tag) query.append("tag", params.tag);
+  if (params?.search) query.append("search", params.search);
+
+  const url = `${BASE_URL}/subtexts/?${query.toString()}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("Failed to load subtexts");
+  return res.json();
+}
+
+export async function fetchSubtext(id: string): Promise<Subtext> {
+  const res = await fetch(`${BASE_URL}/subtexts/${id}`);
+  if (!res.ok) throw new Error("Failed to fetch subtext");
+  return res.json();
+}
+
+export async function createSubtext(payload: SubtextCreatePayload): Promise<Subtext> {
+  const res = await fetch(`${BASE_URL}/subtexts/`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.detail || "Failed to create subtext");
+  }
+  return res.json();
+}
+
+export async function updateSubtext(id: string, payload: SubtextUpdatePayload): Promise<Subtext> {
+  const res = await fetch(`${BASE_URL}/subtexts/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.detail || "Failed to update subtext");
+  }
+  return res.json();
+}
+
+export async function deleteSubtext(id: string): Promise<void> {
+  const res = await fetch(`${BASE_URL}/subtexts/${id}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) throw new Error("Failed to delete subtext");
+}
+
+export async function submitSubtextReview(id: string, submission: ReviewSubmission): Promise<Subtext> {
+  const res = await fetch(`${BASE_URL}/subtexts/${id}/review`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(submission),
+  });
+  if (!res.ok) throw new Error("Failed to submit subtext review");
+  return res.json();
+}
+
+export async function fetchSubtextShuffleBatch(params?: {
+  categoryId?: string;
+  tag?: string;
+  limit?: number;
+  mode?: string;
+}): Promise<Subtext[]> {
+  const query = new URLSearchParams();
+  if (params?.categoryId) query.append("category_id", params.categoryId);
+  if (params?.tag) query.append("tag", params.tag);
+  if (params?.limit) query.append("limit", params.limit.toString());
+  if (params?.mode) query.append("mode", params.mode);
+
+  const url = `${BASE_URL}/subtexts/shuffle?${query.toString()}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("Failed to load subtext shuffle batch");
+  return res.json();
+}
+
+
 

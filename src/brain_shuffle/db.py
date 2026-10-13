@@ -1,12 +1,11 @@
 from collections.abc import Generator
 from pathlib import Path
+from sqlalchemy import event, text
 from sqlmodel import Session, SQLModel, create_engine
 from brain_shuffle.config import settings
 
 # Ensure data directory exists if using local sqlite or backups
 Path("./data/backups").mkdir(parents=True, exist_ok=True)
-
-from sqlalchemy import event
 
 connect_args = {}
 if settings.DATABASE_URL.startswith("sqlite"):
@@ -29,10 +28,10 @@ if settings.DATABASE_URL.startswith("sqlite"):
 
 
 def init_db() -> None:
+    import brain_shuffle.models  # noqa: F401
     SQLModel.metadata.create_all(engine)
     if settings.DATABASE_URL.startswith("sqlite"):
         with Session(engine) as session:
-            from sqlalchemy import text
             try:
                 session.connection().execute(
                     text("ALTER TABLE problems ADD COLUMN cadence VARCHAR DEFAULT 'weekly'")

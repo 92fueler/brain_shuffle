@@ -4,8 +4,6 @@ from sqlmodel import Session, SQLModel, create_engine
 from sqlalchemy.pool import StaticPool
 from brain_shuffle.main import app
 from brain_shuffle.db import get_session
-from brain_shuffle.models.category import Category
-from brain_shuffle.models.problem import Problem
 
 
 @pytest.fixture(name="client")

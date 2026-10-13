@@ -1,12 +1,22 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from brain_shuffle.api import api_router
 from brain_shuffle.config import settings
+from brain_shuffle.db import init_db
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    yield
+
 
 app = FastAPI(
     title="BrainShuffle API",
     description="Knowledge retention, active recall, and problem shuffle engine",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(

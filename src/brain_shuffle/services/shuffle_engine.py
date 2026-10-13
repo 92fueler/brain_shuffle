@@ -189,7 +189,7 @@ class ShuffleEngine:
             links = self.session.exec(
                 select(ReviewListProblemLink).where(ReviewListProblemLink.review_list_id == review_list_id)
             ).all()
-            allowed_ids = {l.problem_id for l in links}
+            allowed_ids = {link.problem_id for link in links}
             all_problems = [p for p in all_problems if p.id in allowed_ids]
 
         if not all_problems:

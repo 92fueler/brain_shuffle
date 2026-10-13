@@ -133,6 +133,72 @@ const PRESET_THEMES: Record<string, { color: string; bg: string; border: string 
     bg: "rgba(249, 115, 22, 0.15)",
     border: "rgba(249, 115, 22, 0.35)",
   },
+  // Subtext & Universal Journaling: Indigo / Violet
+  subtext: {
+    color: "#a78bfa",
+    bg: "rgba(139, 92, 246, 0.15)",
+    border: "rgba(139, 92, 246, 0.35)",
+  },
+  subtexts: {
+    color: "#a78bfa",
+    bg: "rgba(139, 92, 246, 0.15)",
+    border: "rgba(139, 92, 246, 0.35)",
+  },
+  // Idioms & Phrases: Warm Amber
+  idioms: {
+    color: "#fbbf24",
+    bg: "rgba(245, 158, 11, 0.15)",
+    border: "rgba(245, 158, 11, 0.35)",
+  },
+  idiom: {
+    color: "#fbbf24",
+    bg: "rgba(245, 158, 11, 0.15)",
+    border: "rgba(245, 158, 11, 0.35)",
+  },
+  phrases: {
+    color: "#f472b6",
+    bg: "rgba(236, 72, 153, 0.15)",
+    border: "rgba(236, 72, 153, 0.35)",
+  },
+  // Vocabulary: Mint Emerald
+  vocabulary: {
+    color: "#34d399",
+    bg: "rgba(16, 185, 129, 0.15)",
+    border: "rgba(16, 185, 129, 0.35)",
+  },
+  vocab: {
+    color: "#34d399",
+    bg: "rgba(16, 185, 129, 0.15)",
+    border: "rgba(16, 185, 129, 0.35)",
+  },
+  // Cinema & Movies: Electric Sky
+  cinema: {
+    color: "#38bdf8",
+    bg: "rgba(14, 165, 233, 0.15)",
+    border: "rgba(14, 165, 233, 0.35)",
+  },
+  movies: {
+    color: "#38bdf8",
+    bg: "rgba(14, 165, 233, 0.15)",
+    border: "rgba(14, 165, 233, 0.35)",
+  },
+  // Spoken Dialogue & Conversations: Cyan / Teal
+  conversations: {
+    color: "#2dd4bf",
+    bg: "rgba(20, 184, 166, 0.15)",
+    border: "rgba(20, 184, 166, 0.35)",
+  },
+  dialogue: {
+    color: "#2dd4bf",
+    bg: "rgba(20, 184, 166, 0.15)",
+    border: "rgba(20, 184, 166, 0.35)",
+  },
+  // News Analysis: Soft Purple
+  news: {
+    color: "#c084fc",
+    bg: "rgba(168, 85, 247, 0.15)",
+    border: "rgba(168, 85, 247, 0.35)",
+  },
 };
 
 // Deterministic dynamic fallback palette for arbitrary user-created categories
