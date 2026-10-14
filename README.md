@@ -28,6 +28,7 @@ flowchart LR
 - **Rolling Review Cadence**: Continuous rolling-window scheduling (`Drill Soon ~4h`, `Mid-Week 2–3d`, `Next Week 7d`, `Skip / Park 21d`) eliminating calendar-boundary resets.
 - **Multi-Level Cadence Controls**: Configurable via the Edit Problem dialog, dynamic intent ratings during recall tests, or immediate on-demand review via the Decks Hub.
 - **Native SQLite Snapshots & Recovery**: Deterministic zero-lock compaction (`VACUUM INTO`) to canonical storage (`data/backups/brain_shuffle_snapshot.db`) with interactive modal verification and safety rollback copies.
+- **Topic Families & Deduplication Guardrails**: Client-side Proximity Radar that detects duplicates and series variants in real time ($0.00 cost) with hierarchical topic family accordions and in-flashcard sibling comparison.
 - **Company Decks**: Filter by company across domains and persist custom in-flight review lists to the database.
 - **Data Portability**: Collapsible JSON export and import for database backups and cross-machine migrations.
 
@@ -42,6 +43,7 @@ flowchart LR
 - [docs/SNAPSHOT_ARCHITECTURE_SPEC.md](docs/SNAPSHOT_ARCHITECTURE_SPEC.md): Technical specification for native SQLite snapshots and automated recovery.
 - [docs/SUBTEXT_DESIGN.md](docs/SUBTEXT_DESIGN.md): Technical specification for the Subtexts & Idioms track and universal journaling.
 - [docs/DIAGRAM_AND_ASSET_DESIGN.md](docs/DIAGRAM_AND_ASSET_DESIGN.md): Technical specification for image pasting, Excalidraw vector canvas, and dual-format storage.
+- [docs/TOPIC_GROUPING_AND_DEDUPLICATION_DESIGN.md](docs/TOPIC_GROUPING_AND_DEDUPLICATION_DESIGN.md): Technical specification for topic grouping, zero-cost Proximity Radar, series parsing, and surgical HITL classification.
 - [src/brain_shuffle/](src/brain_shuffle/): Python backend application:
   - [src/brain_shuffle/models/](src/brain_shuffle/models/): SQLModel entities (`Category`, `Problem`, `Subtext`, `ReviewList`, `ReviewLog`).
   - [src/brain_shuffle/schemas/](src/brain_shuffle/schemas/): Pydantic validation and serialization schemas.

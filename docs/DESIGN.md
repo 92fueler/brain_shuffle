@@ -95,6 +95,10 @@ erDiagram
     PROBLEM ||--o{ REVIEW_LOG : logs
     REVIEW_LIST ||--o{ REVIEW_LIST_PROBLEM : contains
     PROBLEM ||--o{ REVIEW_LIST_PROBLEM : referenced_by
+    PROBLEM ||--o{ PROBLEM_FAMILY_MEMBER : joins
+    PROBLEM_FAMILY ||--o{ PROBLEM_FAMILY_MEMBER : groups
+    PROBLEM ||--o{ PROBLEM_RELATION : relates_source
+    PROBLEM ||--o{ PROBLEM_RELATION : relates_target
 
     CATEGORY {
         uuid id
@@ -115,6 +119,26 @@ erDiagram
         float retention_score
         string cadence
         timestamp next_review_due
+    }
+
+    PROBLEM_FAMILY {
+        uuid id
+        uuid category_id
+        string name
+        text description
+    }
+
+    PROBLEM_FAMILY_MEMBER {
+        uuid family_id
+        uuid problem_id
+        int display_order
+    }
+
+    PROBLEM_RELATION {
+        uuid source_problem_id
+        uuid target_problem_id
+        string relation_type
+        text note
     }
 
     REVIEW_LIST {
@@ -178,8 +202,10 @@ The review workspace ([frontend/src/components/ShuffleView.tsx](frontend/src/com
 ### 3. Problem Curation & Multi-Select Deck Building
 The curation interface ([frontend/src/components/ProblemManager.tsx](frontend/src/components/ProblemManager.tsx)) combines LeetCode-style efficiency with custom deck compilation:
 - **Compact List Rows**: Each row displays an item selection checkbox, color-coded category badge, title, quick actions (edit, delete), and an expansion toggle.
+- **Topic Family Grouping View**: An alternate display mode groups problems into hierarchical family accordions (e.g. `k-Sum Series`, `Monotonic Stack Pattern`), allowing related variations to be browsed, selected, or drilled together.
 - **In-Place Recall**: Expanding any row mounts the active recall card directly within the list, allowing quick review without navigating away.
 - **Multi-Select Deck Authoring**: Selecting multiple problem checkboxes reveals a floating action bar to save the selection as a persistent custom deck or update review cadences in bulk.
+- **Proximity Radar & Duplicate Prevention**: The problem creation dialog runs a real-time, client-side heuristic engine that flags potential duplicates and identifies series variants (e.g. linking `3Sum` to `Two Sum`) as the operator types, requiring zero external API calls.
 - **Non-Dismissive Modal Dialogs**: Creation and editing modals require explicit confirmation (`Save` or `Cancel`), preventing accidental dismissal on backdrop clicks. Textareas support automatic indentation on `Enter` and 4-space indentation on `Tab`.
 
 ### 4. Interactive Unified Workspaces & Indentation Engine
@@ -258,6 +284,7 @@ When constructing a review batch, the engine evaluates candidates using three ru
 To prevent cognitive priming (e.g., solving three tree recursion problems in a row, which tips off the solution method), the engine applies interleaving:
 - **Topic Signature**: Inspects tags, category domains, and keywords.
 - **Anti-Clustering Penalty**: Successive cards with overlapping tags receive selection penalties. The sequence dynamically alternates between algorithms, architectures, and language concepts to enforce varied practice.
+- **Targeted Family Drill Override**: When initiating a focused session for a specific Topic Family or custom review list (e.g., drilling the `k-Sum Series`), the anti-clustering penalty is suspended, allowing intentional sequential recall of related algorithmic variations.
 
 ---
 
@@ -309,6 +336,7 @@ Rather than relying on brittle text serialization, backups leverage SQLite's nat
 ## 6) Subsystem Specifications & Deep Dives
 
 Detailed technical designs and implementation specifications for platform subsystems are maintained in dedicated documents:
-- [SNAPSHOT_ARCHITECTURE_SPEC.md](docs/SNAPSHOT_ARCHITECTURE_SPEC.md): Native SQLite snapshot engine, WAL concurrency, automated lifespan rotation, and three-stage rollback recovery.
-- [SUBTEXT_DESIGN.md](docs/SUBTEXT_DESIGN.md): Subtext and idioms track, unbounded text containment, dialogue decoding, and nuance matrix presentation.
-- [DIAGRAM_AND_ASSET_DESIGN.md](docs/DIAGRAM_AND_ASSET_DESIGN.md): Clipboard image pasting, Excalidraw vector canvas integration, dual `scene_json` / `svg_data` storage, full-screen Zen overlay, and SQLite BLOB persistence.
+- [SNAPSHOT_ARCHITECTURE_SPEC.md](SNAPSHOT_ARCHITECTURE_SPEC.md): Native SQLite snapshot engine, WAL concurrency, automated lifespan rotation, and three-stage rollback recovery.
+- [SUBTEXT_DESIGN.md](SUBTEXT_DESIGN.md): Subtext and idioms track, unbounded text containment, dialogue decoding, and nuance matrix presentation.
+- [DIAGRAM_AND_ASSET_DESIGN.md](DIAGRAM_AND_ASSET_DESIGN.md): Clipboard image pasting, Excalidraw vector canvas integration, dual `scene_json` / `svg_data` storage, full-screen Zen overlay, and SQLite BLOB persistence.
+- [TOPIC_GROUPING_AND_DEDUPLICATION_DESIGN.md](TOPIC_GROUPING_AND_DEDUPLICATION_DESIGN.md): Topic family grouping, zero-cost client-side Proximity Radar, series variant parsing, and surgical human-in-the-loop (HITL) classification.
