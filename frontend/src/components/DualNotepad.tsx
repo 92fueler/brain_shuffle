@@ -12,6 +12,11 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { MarkdownViewer } from "./MarkdownViewer";
+import {
+  handleTextareaTabKey,
+  handleTextareaBackspaceKey,
+  handleTextareaEnterKey,
+} from "../indentation";
 
 interface DualNotepadProps {
   value: string;
@@ -173,105 +178,25 @@ export const DualNotepad: React.FC<DualNotepadProps> = ({
     }
   };
 
-  // Keyboard helper for auto-indent and tab indentation
+  // Keyboard helper for auto-indent, soft backspace, and tab indentation
   const handleKeyDown = (
     setter: (val: string) => void,
     isSecondCol: boolean = false
   ) => (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     const textarea = e.currentTarget;
-    const { selectionStart, selectionEnd } = textarea;
-    const currentVal = textarea.value;
+    const update = (nextVal: string, newStart: number, newEnd: number) => {
+      setter(nextVal);
+      if (isSecondCol) emitChange(col1, nextVal, isSplit);
+      else emitChange(nextVal, col2, isSplit);
+      requestAnimationFrame(() => {
+        textarea.selectionStart = newStart;
+        textarea.selectionEnd = newEnd;
+      });
+    };
 
-    // 1. Tab Key (Indentation)
-    if (e.key === "Tab") {
-      e.preventDefault();
-      if (e.shiftKey) {
-        // Shift+Tab: Dedent
-        const lineStart = currentVal.lastIndexOf("\n", selectionStart - 1) + 1;
-        const currentLine = currentVal.slice(lineStart, selectionEnd);
-        if (currentLine.startsWith("    ")) {
-          const nextVal = currentVal.slice(0, lineStart) + currentVal.slice(lineStart + 4);
-          const newStart = Math.max(lineStart, selectionStart - 4);
-          const newEnd = Math.max(lineStart, selectionEnd - 4);
-          setter(nextVal);
-          if (isSecondCol) emitChange(col1, nextVal, isSplit);
-          else emitChange(nextVal, col2, isSplit);
-          requestAnimationFrame(() => {
-            textarea.selectionStart = newStart;
-            textarea.selectionEnd = newEnd;
-          });
-        }
-      } else {
-        // Tab: Insert 4 spaces
-        const nextVal = currentVal.slice(0, selectionStart) + "    " + currentVal.slice(selectionEnd);
-        setter(nextVal);
-        if (isSecondCol) emitChange(col1, nextVal, isSplit);
-        else emitChange(nextVal, col2, isSplit);
-        requestAnimationFrame(() => {
-          textarea.selectionStart = selectionStart + 4;
-          textarea.selectionEnd = selectionStart + 4;
-        });
-      }
-      return;
-    }
-
-    // 2. Enter Key (Auto-Indent + Bullet Continuation)
-    if (e.key === "Enter") {
-      const lineStart = currentVal.lastIndexOf("\n", selectionStart - 1) + 1;
-      const lineText = currentVal.slice(lineStart, selectionStart);
-
-      // Check for bullet list pattern (e.g., "- " or "* " or "• " or "1. ")
-      const bulletMatch = lineText.match(/^([ \t]*)([-*•]|\d+\.)[ \t]+/);
-      const indentMatch = lineText.match(/^[ \t]*/);
-
-      if (bulletMatch && lineText.trim() === bulletMatch[2]) {
-        // Empty bullet line -> pressing Enter removes the bullet
-        e.preventDefault();
-        const nextVal = currentVal.slice(0, lineStart) + currentVal.slice(selectionStart);
-        setter(nextVal);
-        if (isSecondCol) emitChange(col1, nextVal, isSplit);
-        else emitChange(nextVal, col2, isSplit);
-        requestAnimationFrame(() => {
-          textarea.selectionStart = lineStart;
-          textarea.selectionEnd = lineStart;
-        });
-        return;
-      }
-
-      if (bulletMatch) {
-        e.preventDefault();
-        const bulletPrefix = bulletMatch[1] + (bulletMatch[2].match(/\d+\./) ? `${parseInt(bulletMatch[2], 10) + 1}. ` : `${bulletMatch[2]} `);
-        const nextVal = currentVal.slice(0, selectionStart) + "\n" + bulletPrefix + currentVal.slice(selectionEnd);
-        const newPos = selectionStart + 1 + bulletPrefix.length;
-        setter(nextVal);
-        if (isSecondCol) emitChange(col1, nextVal, isSplit);
-        else emitChange(nextVal, col2, isSplit);
-        requestAnimationFrame(() => {
-          textarea.selectionStart = newPos;
-          textarea.selectionEnd = newPos;
-        });
-        return;
-      }
-
-      let indent = indentMatch ? indentMatch[0] : "";
-      const cleanLine = lineText.replace(/#.*$/, "").trimEnd();
-      if (cleanLine.endsWith(":")) {
-        indent += "    ";
-      }
-
-      if (indent.length > 0) {
-        e.preventDefault();
-        const nextVal = currentVal.slice(0, selectionStart) + "\n" + indent + currentVal.slice(selectionEnd);
-        const newPos = selectionStart + 1 + indent.length;
-        setter(nextVal);
-        if (isSecondCol) emitChange(col1, nextVal, isSplit);
-        else emitChange(nextVal, col2, isSplit);
-        requestAnimationFrame(() => {
-          textarea.selectionStart = newPos;
-          textarea.selectionEnd = newPos;
-        });
-      }
-    }
+    if (handleTextareaTabKey(e, update)) return;
+    if (handleTextareaBackspaceKey(e, update)) return;
+    if (handleTextareaEnterKey(e, update, { enableBullets: true, enableColonBonus: true })) return;
   };
 
   // Switch column to edit mode if currently in preview

@@ -15,6 +15,11 @@ import {
   deleteSubtext,
 } from "../api";
 import {
+  handleTextareaTabKey,
+  handleTextareaBackspaceKey,
+  handleTextareaEnterKey,
+} from "../indentation";
+import {
   Plus,
   Search,
   Trash2,
@@ -230,68 +235,17 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
     (setter: (val: string) => void) =>
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
       const textarea = e.currentTarget;
-      const { selectionStart, selectionEnd, value: currentVal } = textarea;
-
-      // 1. Tab Key (Indentation & Dedentation)
-      if (e.key === "Tab") {
-        e.preventDefault();
-        if (e.shiftKey) {
-          // Shift+Tab: Dedent
-          const lineStart = currentVal.lastIndexOf("\n", selectionStart - 1) + 1;
-          const currentLine = currentVal.slice(lineStart, selectionEnd);
-          if (currentLine.startsWith("    ")) {
-            const nextVal = currentVal.slice(0, lineStart) + currentVal.slice(lineStart + 4);
-            const newStart = Math.max(lineStart, selectionStart - 4);
-            const newEnd = Math.max(lineStart, selectionEnd - 4);
-            setter(nextVal);
-            requestAnimationFrame(() => {
-              textarea.selectionStart = newStart;
-              textarea.selectionEnd = newEnd;
-            });
-          } else if (currentLine.startsWith(" ")) {
-            const spaces = currentLine.match(/^ +/)?.[0].length || 1;
-            const remove = Math.min(spaces, 4);
-            const nextVal = currentVal.slice(0, lineStart) + currentVal.slice(lineStart + remove);
-            setter(nextVal);
-            requestAnimationFrame(() => {
-              textarea.selectionStart = Math.max(lineStart, selectionStart - remove);
-              textarea.selectionEnd = Math.max(lineStart, selectionEnd - remove);
-            });
-          }
-        } else {
-          // Tab: Insert 4 spaces
-          const nextVal = currentVal.slice(0, selectionStart) + "    " + currentVal.slice(selectionEnd);
-          setter(nextVal);
-          requestAnimationFrame(() => {
-            textarea.selectionStart = selectionStart + 4;
-            textarea.selectionEnd = selectionStart + 4;
-          });
-        }
-        return;
-      }
-
-      // 2. Enter Key (Auto-Indent + Colon Bonus)
-      if (e.key === "Enter") {
-        e.preventDefault();
-        const lineStart = currentVal.lastIndexOf("\n", selectionStart - 1) + 1;
-        const lineText = currentVal.slice(lineStart, selectionStart);
-        const indentMatch = lineText.match(/^[ \t]*/);
-        let indent = indentMatch ? indentMatch[0] : "";
-
-        const cleanLine = lineText.replace(/#.*$/, "").trimEnd();
-        if (cleanLine.endsWith(":")) {
-          indent += "    ";
-        }
-
-        const nextVal = currentVal.slice(0, selectionStart) + "\n" + indent + currentVal.slice(selectionEnd);
-        const newPos = selectionStart + 1 + indent.length;
+      const update = (nextVal: string, newStart: number, newEnd: number) => {
         setter(nextVal);
         requestAnimationFrame(() => {
-          textarea.selectionStart = newPos;
-          textarea.selectionEnd = newPos;
+          textarea.selectionStart = newStart;
+          textarea.selectionEnd = newEnd;
         });
-        return;
-      }
+      };
+
+      if (handleTextareaTabKey(e, update)) return;
+      if (handleTextareaBackspaceKey(e, update)) return;
+      if (handleTextareaEnterKey(e, update, { enableColonBonus: true })) return;
     };
 
   const handleCreateProblem = async (e: React.FormEvent) => {

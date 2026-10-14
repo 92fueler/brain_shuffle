@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useRef, useCallback } from "react";
 import CodeMirror, { type Extension } from "@uiw/react-codemirror";
+import { EditorState, Prec } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
-import { indentWithTab } from "@codemirror/commands";
+import { indentLess } from "@codemirror/commands";
 import { indentUnit } from "@codemirror/language";
 import { oneDark } from "@codemirror/theme-one-dark";
 import { python } from "@codemirror/lang-python";
@@ -13,6 +14,7 @@ import { rust } from "@codemirror/lang-rust";
 import { sql } from "@codemirror/lang-sql";
 import { json } from "@codemirror/lang-json";
 import { Code2, Copy, Check, RotateCcw } from "lucide-react";
+import { TAB_SIZE, ideTabCommand, ideBackspaceCommand } from "../indentation";
 
 export type SupportedLanguage =
   | "python"
@@ -315,13 +317,26 @@ export const CodeScratchpad: React.FC<CodeScratchpadProps> = ({
     );
   }, [fontSize]);
 
-  // Combined CodeMirror extensions
+  // Combined CodeMirror extensions with IDE-grade Tab and Backspace commands
   const extensions = useMemo<Extension[]>(() => {
     return [
       oneDark,
       dynamicTheme,
-      indentUnit.of("    "),
-      keymap.of([indentWithTab]),
+      EditorState.tabSize.of(TAB_SIZE),
+      indentUnit.of(" ".repeat(TAB_SIZE)),
+      Prec.highest(
+        keymap.of([
+          {
+            key: "Tab",
+            run: ideTabCommand,
+            shift: indentLess,
+          },
+          {
+            key: "Backspace",
+            run: ideBackspaceCommand,
+          },
+        ])
+      ),
       languageExtension,
     ];
   }, [dynamicTheme, languageExtension]);
@@ -448,6 +463,7 @@ export const CodeScratchpad: React.FC<CodeScratchpadProps> = ({
           extensions={extensions}
           onChange={handleEditorChange}
           placeholder={activeOption.placeholder}
+          indentWithTab={false}
           basicSetup={{
             lineNumbers: true,
             foldGutter: false,
