@@ -14,7 +14,7 @@ graph TD
     
     Shuffle --> Flashcard["ProblemFlashcard"]
     Manager --> Flashcard
-    Flashcard --> Scratchpad["PythonScratchpad (CodeMirror Multi-Language Engine)"]
+    Flashcard --> Scratchpad["CodeScratchpad (CodeMirror Polyglot Engine)"]
 ```
 
 ---
@@ -23,16 +23,16 @@ graph TD
 
 - [src/components/ProblemFlashcard.tsx](src/components/ProblemFlashcard.tsx):
   - Renders problem titles initially while keeping active recall prompts and solutions hidden.
-  - Houses the embedded multi-language code scratchpad.
+  - Houses the embedded multi-language code scratchpad and dual notes workspace.
   - Provides progressive disclosure buttons for problem details and solutions.
   - Features the compact, low-saturation rolling cadence action row (`Drill Soon`, `Mid-Week`, `Next Week`, `Skip / Park`).
-- [src/components/PythonScratchpad.tsx](src/components/PythonScratchpad.tsx):
-  - Integrates CodeMirror 6 with syntax grammar engines for Python 3, TypeScript, JavaScript, C++, Java, Go, Rust, and SQL.
+- [src/components/CodeScratchpad.tsx](src/components/CodeScratchpad.tsx):
+  - Integrates CodeMirror 6 with syntax grammar engines for Python 3, TypeScript, JavaScript, C++, Java, Go, Rust, SQL, JSON, and Plain Text / Shell.
   - Supports persistent language selection in `localStorage` (`preferred_scratchpad_language`).
-  - AST-aware bracket matching, indentation, and multiline comments/docstrings (`"""` and `'''`).
+  - AST-aware bracket matching, indentation, and multiline comments/docstrings.
   - Implements 4-space Tab indent and dedent via `@codemirror/commands` and `@codemirror/language`.
   - Persists ephemeral draft code per problem in `sessionStorage` (`session_scratch_{problemId}`).
-  - Includes smooth vertical height resizer (260px–820px) persisting to `localStorage` (`preferred_scratchpad_height`).
+  - Includes smooth vertical height resizer (180px–820px) persisting to `localStorage` (`preferred_scratchpad_height`).
 - [src/components/ProblemManager.tsx](src/components/ProblemManager.tsx):
   - Curate domain: problem inventory with category pills, company badges, search, and embedded flashcards.
   - Multi-select row checklist with "Select All Visible" toggle for creating persistent review decks (`createReviewList`).

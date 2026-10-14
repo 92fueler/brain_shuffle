@@ -9,6 +9,7 @@ import {
   Quote,
   Sparkles,
 } from "lucide-react";
+import { MarkdownViewer } from "./MarkdownViewer";
 
 interface SubtextFlashcardProps {
   subtext: Subtext;
@@ -23,6 +24,7 @@ interface SubtextFlashcardProps {
   onNext?: () => void;
   hasPrev?: boolean;
   hasNext?: boolean;
+  embedded?: boolean;
 }
 
 export const SubtextFlashcard: React.FC<SubtextFlashcardProps> = ({
@@ -38,6 +40,7 @@ export const SubtextFlashcard: React.FC<SubtextFlashcardProps> = ({
   onNext,
   hasPrev = false,
   hasNext = false,
+  embedded = false,
 }) => {
   const [showSubtext, setShowSubtext] = useState<boolean>(false);
   const [internalSubmitting, setInternalSubmitting] = useState<boolean>(false);
@@ -82,16 +85,18 @@ export const SubtextFlashcard: React.FC<SubtextFlashcardProps> = ({
   const theme = getCategoryTheme(categorySlug || categoryName || "subtext");
 
   return (
-    <div className={`card flashcard subtext-card ${className}`}>
+    <div className={`card flashcard subtext-card ${embedded ? "embedded-flashcard" : ""} ${className}`}>
       {/* Top Bar: Category Pill & Cadence Metadata */}
       <div className="card-top-bar">
         <div className="badge-row">
-          <span
-            className="badge category-badge"
-            style={theme.style}
-          >
-            {formatCategoryName(categoryName || "Subtext")}
-          </span>
+          {!embedded && (
+            <span
+              className="badge category-badge"
+              style={theme.style}
+            >
+              {formatCategoryName(categoryName || "Subtext")}
+            </span>
+          )}
 
           {subtext.review_count > 0 ? (
             <>
@@ -140,11 +145,13 @@ export const SubtextFlashcard: React.FC<SubtextFlashcardProps> = ({
 
       {/* Main Subtext Content */}
       <div className="subtext-card-view">
-        {/* Title Header */}
-        <div className="subtext-header-box">
-          <span className="subtext-kicker">Topic / Anchor</span>
-          <h2 className="subtext-title-text">{subtext.title}</h2>
-        </div>
+        {/* Title Header (omitted when embedded because parent accordion displays title) */}
+        {!embedded && (
+          <div className="subtext-header-box">
+            <span className="subtext-kicker">Topic / Anchor</span>
+            <h2 className="subtext-title-text">{subtext.title}</h2>
+          </div>
+        )}
 
         {/* Observable Surface: Original Text Quote Container */}
         <div className="subtext-quote-box">
@@ -184,7 +191,7 @@ export const SubtextFlashcard: React.FC<SubtextFlashcardProps> = ({
         {showSubtext && (
           <div className="subtext-answer-section">
             <div className="section-label">Subtext / Meaning & Nuance:</div>
-            <div className="subtext-content-text">{subtext.subtext}</div>
+            <MarkdownViewer source={subtext.subtext} className="subtext-content-text" />
           </div>
         )}
       </div>

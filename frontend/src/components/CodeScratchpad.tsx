@@ -11,6 +11,7 @@ import { java } from "@codemirror/lang-java";
 import { go } from "@codemirror/lang-go";
 import { rust } from "@codemirror/lang-rust";
 import { sql } from "@codemirror/lang-sql";
+import { json } from "@codemirror/lang-json";
 import { Code2, Copy, Check, RotateCcw } from "lucide-react";
 
 export type SupportedLanguage =
@@ -21,7 +22,9 @@ export type SupportedLanguage =
   | "java"
   | "go"
   | "rust"
-  | "sql";
+  | "sql"
+  | "json"
+  | "text";
 
 interface LanguageOption {
   id: SupportedLanguage;
@@ -34,14 +37,14 @@ const LANGUAGE_OPTIONS: LanguageOption[] = [
   {
     id: "python",
     name: "Python 3",
-    meta: "4 spaces • auto-indent",
-    placeholder: "# Write Python code here... (auto-indent, comments & quotes supported)",
+    meta: "4 spaces",
+    placeholder: "# Write Python code here...",
   },
   {
     id: "typescript",
     name: "TypeScript",
     meta: "Strict types • TSX",
-    placeholder: "// Write TypeScript code here... (type annotations supported)",
+    placeholder: "// Write TypeScript code here...",
   },
   {
     id: "javascript",
@@ -79,16 +82,28 @@ const LANGUAGE_OPTIONS: LanguageOption[] = [
     meta: "Standard ANSI SQL",
     placeholder: "-- Write SQL queries here...",
   },
+  {
+    id: "json",
+    name: "JSON",
+    meta: "RFC 8259",
+    placeholder: '{\n  "key": "value"\n}',
+  },
+  {
+    id: "text",
+    name: "Plain Text / Shell",
+    meta: "Plain Text • Shell",
+    placeholder: "// Write notes, pseudo-code, shell commands, or text here...",
+  },
 ];
 
-interface PythonScratchpadProps {
+export interface CodeScratchpadProps {
   problemId: string;
   value: string;
   onChange: (val: string) => void;
   onClear: () => void;
 }
 
-export const PythonScratchpad: React.FC<PythonScratchpadProps> = ({
+export const CodeScratchpad: React.FC<CodeScratchpadProps> = ({
   problemId: _problemId,
   value,
   onChange,
@@ -228,6 +243,10 @@ export const PythonScratchpad: React.FC<PythonScratchpadProps> = ({
         return rust();
       case "sql":
         return sql();
+      case "json":
+        return json();
+      case "text":
+        return [];
       default:
         return python();
     }
@@ -338,7 +357,7 @@ export const PythonScratchpad: React.FC<PythonScratchpadProps> = ({
   );
 
   return (
-    <div className="python-scratchpad-container compact-pad">
+    <div className="code-scratchpad-container python-scratchpad-container compact-pad">
       {/* Editor Header */}
       <div className="scratchpad-header">
         <div className="scratchpad-lang-badge">
@@ -359,7 +378,6 @@ export const PythonScratchpad: React.FC<PythonScratchpadProps> = ({
               ))}
             </select>
           </div>
-          <span className="lang-meta">• {activeOption.meta}</span>
         </div>
 
         <div className="scratchpad-actions">
@@ -458,5 +476,6 @@ export const PythonScratchpad: React.FC<PythonScratchpadProps> = ({
   );
 };
 
-// Also export alias CodeScratchpad for multi-language clarity
-export const CodeScratchpad = PythonScratchpad;
+// Backward-compatibility aliases
+export type PythonScratchpadProps = CodeScratchpadProps;
+export const PythonScratchpad = CodeScratchpad;

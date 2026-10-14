@@ -28,9 +28,12 @@ import {
   Check,
   X,
   AlertCircle,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 import { ProblemFlashcard } from "./ProblemFlashcard";
 import { SubtextFlashcard } from "./SubtextFlashcard";
+import { DualNotepad } from "./DualNotepad";
 
 interface ProblemManagerProps {
   categories: Category[];
@@ -89,8 +92,10 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
   const [search, setSearch] = useState("");
   const [selectedCompanyFilter, setSelectedCompanyFilter] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [isAddModalMaximized, setIsAddModalMaximized] = useState(false);
   const [showCatModal, setShowCatModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [isEditModalMaximized, setIsEditModalMaximized] = useState(false);
   const [editingSubtext, setEditingSubtext] = useState<Subtext | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [expandedSubtextId, setExpandedSubtextId] = useState<string | null>(null);
@@ -993,38 +998,24 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
                       categoryName={formattedCatName}
                       categorySlug={catSlug}
                       onReviewRecorded={onRefresh}
+                      embedded={true}
                     />
-                    <div className="expanded-footer-meta">
-                      {isProblemCategory(getCategorySlug(problem.category_id)) ? (
-                        <div className="meta-group">
-                          <span className="meta-label">Companies:</span>
-                          <div className="meta-pills">
-                            {problem.companies && problem.companies.length > 0 ? (
-                              problem.companies.map((c, i) => (
+                    {isProblemCategory(getCategorySlug(problem.category_id)) &&
+                      problem.companies &&
+                      problem.companies.length > 0 && (
+                        <div className="expanded-footer-meta">
+                          <div className="meta-group">
+                            <span className="meta-label">Companies:</span>
+                            <div className="meta-pills">
+                              {problem.companies.map((c, i) => (
                                 <span key={i} className="mini-company-pill">
                                   🏢 {c}
                                 </span>
-                              ))
-                            ) : (
-                              <span className="text-slate-500 italic text-xs">None listed</span>
-                            )}
+                              ))}
+                            </div>
                           </div>
                         </div>
-                      ) : (
-                        <div className="meta-group">
-                          <span className="meta-label">Type:</span>
-                          <span className="badge category-badge note-type-badge">📝 Knowledge Note</span>
-                        </div>
                       )}
-                      <button
-                        type="button"
-                        className="edit-details-btn"
-                        onClick={(e) => handleOpenEditModal(problem, e)}
-                        title={isProblemCategory(getCategorySlug(problem.category_id)) ? "Edit problem details" : "Edit note details"}
-                      >
-                        <Pencil size={13} /> {isProblemCategory(getCategorySlug(problem.category_id)) ? "Edit Problem" : "Edit Note"}
-                      </button>
-                    </div>
                   </div>
                 )}
               </div>
@@ -1110,21 +1101,8 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
                       categoryName={formattedCatName}
                       categorySlug={catSlug}
                       onReviewRecorded={onRefresh}
+                      embedded={true}
                     />
-                    <div className="expanded-footer-meta">
-                      <div className="meta-group">
-                        <span className="meta-label">Type:</span>
-                        <span className="badge category-badge note-type-badge">✨ Subtext Journal</span>
-                      </div>
-                      <button
-                        type="button"
-                        className="edit-details-btn"
-                        onClick={(e) => handleOpenEditSubtext(subtext, e)}
-                        title="Edit subtext details"
-                      >
-                        <Pencil size={13} /> Edit Subtext
-                      </button>
-                    </div>
                   </div>
                 )}
               </div>
@@ -1137,7 +1115,10 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
       {/* Add Problem / Note Modal */}
       {showAddModal && (
         <div className="modal-overlay">
-          <div className="modal-content modal-content-wide entry-modal-content" onClick={(e) => e.stopPropagation()}>
+          <div
+            className={`modal-content modal-content-wide entry-modal-content ${isAddModalMaximized ? "maximized" : ""}`}
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="modal-header">
               <h2>
                 {formMode === "subtext"
@@ -1146,14 +1127,24 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
                   ? "Add Knowledge Note"
                   : "Add Problem"}
               </h2>
-              <button
-                type="button"
-                className="modal-close-icon-btn"
-                onClick={() => setShowAddModal(false)}
-                title="Close"
-              >
-                ✕
-              </button>
+              <div className="modal-header-actions">
+                <button
+                  type="button"
+                  className="modal-control-icon-btn"
+                  onClick={() => setIsAddModalMaximized(!isAddModalMaximized)}
+                  title={isAddModalMaximized ? "Restore size" : "Maximize modal"}
+                >
+                  {isAddModalMaximized ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+                </button>
+                <button
+                  type="button"
+                  className="modal-close-icon-btn"
+                  onClick={() => setShowAddModal(false)}
+                  title="Close"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
             <form onSubmit={handleCreateProblem} className="entry-modal-form">
               <div className="entry-modal-body">
@@ -1207,14 +1198,13 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
 
                     <div className="form-group">
                       <label>Subtext & Meaning (Decoded Insight / Notes):</label>
-                      <textarea
-                        className="notes-editor-textarea subtext-input-notes"
-                        rows={5}
-                        placeholder={getSubtextPlaceholders(getCategorySlug(activeFormCatId)).subtext}
+                      <DualNotepad
                         value={subtextText}
-                        onChange={(e) => setSubtextText(e.target.value)}
-                        onKeyDown={createIndentKeyDownHandler(setSubtextText)}
-                        required
+                        onChange={setSubtextText}
+                        placeholder={getSubtextPlaceholders(getCategorySlug(activeFormCatId)).subtext}
+                        labelCol1="Pad 1"
+                        labelCol2="Pad 2"
+                        height={420}
                       />
                       <span className="field-hint-text">
                         Revealed on the back of the flashcard: unstated intention, definition, or nuance matrix.
@@ -1265,13 +1255,13 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
 
                     <div className="form-group note-editor-group">
                       <label>Note / Key Takeaways & Gotchas:</label>
-                      <textarea
-                        className="notes-editor-textarea note-full-editor"
-                        placeholder="The explanation, code snippet, core insight, or takeaway... (Tab & Enter auto-indent supported)"
+                      <DualNotepad
                         value={notes}
-                        onChange={(e) => setNotes(e.target.value)}
-                        onKeyDown={createIndentKeyDownHandler(setNotes)}
-                        required
+                        onChange={setNotes}
+                        placeholder="The explanation, code snippet, core insight, or takeaway... (Tab & Enter auto-indent supported)"
+                        labelCol1="Pad 1"
+                        labelCol2="Pad 2"
+                        height={540}
                       />
                       <span className="field-hint-text">
                         Revealed on the back of the flashcard during review.
@@ -1344,16 +1334,15 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
                       />
                     </div>
 
-                    <div className="form-group">
+                    <div className="form-group note-editor-group">
                       <label>Notes (Solution & Implementation):</label>
-                      <textarea
-                        className="notes-editor-textarea"
-                        rows={8}
-                        placeholder="The key insights, formula, recurrence relation, or Python implementation... (Tab supported)"
+                      <DualNotepad
                         value={notes}
-                        onChange={(e) => setNotes(e.target.value)}
-                        onKeyDown={createIndentKeyDownHandler(setNotes)}
-                        required
+                        onChange={setNotes}
+                        placeholder="The key insights, formula, recurrence relation, or Python implementation..."
+                        labelCol1="Pad 1"
+                        labelCol2="Pad 2"
+                        height={480}
                       />
                     </div>
                   </>
@@ -1390,7 +1379,10 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
       {/* Edit Entry Modal */}
       {showEditModal && (editingProblem || editingSubtext) && (
         <div className="modal-overlay">
-          <div className="modal-content modal-content-wide entry-modal-content" onClick={(e) => e.stopPropagation()}>
+          <div
+            className={`modal-content modal-content-wide entry-modal-content ${isEditModalMaximized ? "maximized" : ""}`}
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="modal-header">
               <h2>
                 {editFormMode === "subtext"
@@ -1399,18 +1391,28 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
                   ? "Edit Note"
                   : "Edit Problem"}
               </h2>
-              <button
-                type="button"
-                className="modal-close-icon-btn"
-                onClick={() => {
-                  setShowEditModal(false);
-                  setEditingProblem(null);
-                  setEditingSubtext(null);
-                }}
-                title="Close"
-              >
-                ✕
-              </button>
+              <div className="modal-header-actions">
+                <button
+                  type="button"
+                  className="modal-control-icon-btn"
+                  onClick={() => setIsEditModalMaximized(!isEditModalMaximized)}
+                  title={isEditModalMaximized ? "Restore size" : "Maximize modal"}
+                >
+                  {isEditModalMaximized ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+                </button>
+                <button
+                  type="button"
+                  className="modal-close-icon-btn"
+                  onClick={() => {
+                    setShowEditModal(false);
+                    setEditingProblem(null);
+                    setEditingSubtext(null);
+                  }}
+                  title="Close"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
             <form onSubmit={handleUpdateProblem} className="entry-modal-form">
               <div className="entry-modal-body">
@@ -1473,14 +1475,13 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
 
                     <div className="form-group">
                       <label>Subtext & Meaning (Decoded Insight / Notes):</label>
-                      <textarea
-                        className="notes-editor-textarea subtext-input-notes"
-                        rows={5}
-                        placeholder={getSubtextPlaceholders(getCategorySlug(editCatId)).subtext}
+                      <DualNotepad
                         value={editSubtextText}
-                        onChange={(e) => setEditSubtextText(e.target.value)}
-                        onKeyDown={createIndentKeyDownHandler(setEditSubtextText)}
-                        required
+                        onChange={setEditSubtextText}
+                        placeholder={getSubtextPlaceholders(getCategorySlug(editCatId)).subtext}
+                        labelCol1="Pad 1"
+                        labelCol2="Pad 2"
+                        height={420}
                       />
                     </div>
 
@@ -1543,13 +1544,13 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
 
                     <div className="form-group note-editor-group">
                       <label>Note / Key Takeaways & Gotchas:</label>
-                      <textarea
-                        className="notes-editor-textarea note-full-editor"
-                        placeholder="The explanation, code snippet, core insight, or takeaway... (Tab & Enter auto-indent supported)"
+                      <DualNotepad
                         value={editNotes}
-                        onChange={(e) => setEditNotes(e.target.value)}
-                        onKeyDown={createIndentKeyDownHandler(setEditNotes)}
-                        required
+                        onChange={setEditNotes}
+                        placeholder="The explanation, code snippet, core insight, or takeaway..."
+                        labelCol1="Pad 1"
+                        labelCol2="Pad 2"
+                        height={540}
                       />
                     </div>
                   </>
@@ -1632,16 +1633,15 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
                       />
                     </div>
 
-                    <div className="form-group">
+                    <div className="form-group note-editor-group">
                       <label>Notes (Solution & Implementation):</label>
-                      <textarea
-                        className="notes-editor-textarea"
-                        rows={8}
-                        placeholder="The key insights, formula, recurrence relation, or Python implementation... (Tab supported)"
+                      <DualNotepad
                         value={editNotes}
-                        onChange={(e) => setEditNotes(e.target.value)}
-                        onKeyDown={createIndentKeyDownHandler(setEditNotes)}
-                        required
+                        onChange={setEditNotes}
+                        placeholder="The key insights, formula, recurrence relation, or Python implementation..."
+                        labelCol1="Pad 1"
+                        labelCol2="Pad 2"
+                        height={480}
                       />
                     </div>
                   </>

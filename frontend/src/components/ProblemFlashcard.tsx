@@ -11,8 +11,14 @@ import {
   ChevronRight,
   BookOpen,
   EyeOff,
+  Code2,
+  Columns,
+  Edit3,
 } from "lucide-react";
-import { PythonScratchpad } from "./PythonScratchpad";
+import { CodeScratchpad } from "./CodeScratchpad";
+import { DualNotepad } from "./DualNotepad";
+import { MarkdownViewer } from "./MarkdownViewer";
+import { Group, Panel, Separator } from "react-resizable-panels";
 
 interface ProblemFlashcardProps {
   problem: Problem;
@@ -27,6 +33,8 @@ interface ProblemFlashcardProps {
   onNext?: () => void;
   hasPrev?: boolean;
   hasNext?: boolean;
+  embedded?: boolean;
+  defaultShowSolution?: boolean;
 }
 
 export const ProblemFlashcard: React.FC<ProblemFlashcardProps> = ({
@@ -42,19 +50,9 @@ export const ProblemFlashcard: React.FC<ProblemFlashcardProps> = ({
   onNext,
   hasPrev = false,
   hasNext = false,
+  embedded = false,
+  defaultShowSolution,
 }) => {
-  const [showHints, setShowHints] = useState<boolean>(false);
-  const [showSolution, setShowSolution] = useState<boolean>(false);
-  const [scratchpad, setScratchpad] = useState<string>(() => {
-    try {
-      return sessionStorage.getItem(`session_scratch_${problem.id}`) || "";
-    } catch {
-      return "";
-    }
-  });
-  const [internalSubmitting, setInternalSubmitting] = useState<boolean>(false);
-  const [reviewedMessage, setReviewedMessage] = useState<string | null>(null);
-
   const isNote = categorySlug
     ? !isProblemCategory(categorySlug)
     : Boolean(
@@ -63,19 +61,55 @@ export const ProblemFlashcard: React.FC<ProblemFlashcardProps> = ({
           !categoryName.toLowerCase().includes("system design")
       );
 
+  const initialShowSolution = defaultShowSolution ?? false;
+  const [showHints, setShowHints] = useState<boolean>(false);
+  const [showSolution, setShowSolution] = useState<boolean>(initialShowSolution);
+  type WorkspaceLayout = "code" | "split" | "notes";
+  const [workspaceLayout, setWorkspaceLayout] = useState<WorkspaceLayout>(() =>
+    isNote ? "notes" : "code"
+  );
+  const [scratchpad, setScratchpad] = useState<string>(() => {
+    try {
+      return sessionStorage.getItem(`session_scratch_${problem.id}`) || "";
+    } catch {
+      return "";
+    }
+  });
+  const [userNotes, setUserNotes] = useState<string>(() => {
+    try {
+      return sessionStorage.getItem(`session_notes_${problem.id}`) || "";
+    } catch {
+      return "";
+    }
+  });
+  const [internalSubmitting, setInternalSubmitting] = useState<boolean>(false);
+  const [reviewedMessage, setReviewedMessage] = useState<string | null>(null);
+
   // Synchronously reset and sync state if problem.id changes
   const [trackedProblemId, setTrackedProblemId] = useState<string>(problem.id);
   if (trackedProblemId !== problem.id) {
     setTrackedProblemId(problem.id);
+    setWorkspaceLayout(isNote ? "notes" : "code");
     try {
       setScratchpad(sessionStorage.getItem(`session_scratch_${problem.id}`) || "");
     } catch {
       setScratchpad("");
     }
+    try {
+      setUserNotes(sessionStorage.getItem(`session_notes_${problem.id}`) || "");
+    } catch {
+      setUserNotes("");
+    }
     setShowHints(false);
-    setShowSolution(false);
+    setShowSolution(initialShowSolution);
     setReviewedMessage(null);
   }
+
+  const hasDistinctPrompt = Boolean(
+    problem.prompt &&
+      problem.prompt.trim() !== "" &&
+      problem.prompt.trim().toLowerCase() !== problem.title.trim().toLowerCase()
+  );
 
   const handleScratchpadChange = (val: string) => {
     setScratchpad(val);
@@ -95,6 +129,16 @@ export const ProblemFlashcard: React.FC<ProblemFlashcardProps> = ({
       // Ignore storage access errors
     }
   };
+
+  const handleUserNotesChange = (val: string) => {
+    setUserNotes(val);
+    try {
+      sessionStorage.setItem(`session_notes_${problem.id}`, val);
+    } catch {
+      // Ignore storage access errors
+    }
+  };
+
 
   const handleRatingClick = async (action: ReviewAction) => {
     if (onRating) {
@@ -126,11 +170,11 @@ export const ProblemFlashcard: React.FC<ProblemFlashcardProps> = ({
   const isBusy = submitting || internalSubmitting;
 
   return (
-    <div className={`card flashcard ${className}`}>
+    <div className={`card flashcard ${embedded ? "embedded-flashcard" : ""} ${className}`}>
       {/* Top Bar: Category Pill & Stats Counter */}
       <div className="card-top-bar">
         <div className="badge-row">
-          {categoryName && (
+          {!embedded && categoryName && (
             <span
               className={`badge category-badge ${isNote ? "note-category-badge" : ""}`}
               style={getCategoryTheme(categorySlug || categoryName).style}
@@ -182,98 +226,185 @@ export const ProblemFlashcard: React.FC<ProblemFlashcardProps> = ({
         )}
       </div>
 
-      {isNote ? (
-        /* NOTE ACTIVE RECALL: Only the prompt is visible initially */
-        <div className="note-card-view">
-          <div className="note-prompt-container">
-            <span className="note-prompt-kicker">Recall Prompt</span>
-            <h2 className="note-prompt-heading">{problem.prompt || problem.title}</h2>
-          </div>
+      {/* Compact Problem / Topic Title Header (omitted when embedded because parent accordion header displays title) */}
+      {!embedded && (
+        <div className="card-compact-header">
+          <h2 className="problem-title-compact">{problem.title}</h2>
+        </div>
+      )}
 
-          <div className="note-reveal-action-bar">
-            <button
-              type="button"
-              className={`note-reveal-btn ${showSolution ? "revealed" : ""}`}
-              onClick={() => setShowSolution(!showSolution)}
-            >
-              {showSolution ? <EyeOff size={16} /> : <BookOpen size={16} />}
-              <span>{showSolution ? "Hide Note" : "Reveal Note / Key Takeaway"}</span>
-            </button>
-          </div>
+      {/* Distinct Recall Prompt Banner: Shown when prompt differs from title */}
+      {hasDistinctPrompt && isNote && (
+        <div className="note-prompt-container" style={{ margin: "4px 0 10px 0" }}>
+          <span className="note-prompt-kicker">Recall Prompt</span>
+          <h3 className="note-prompt-heading">{problem.prompt}</h3>
+        </div>
+      )}
 
-          {showSolution && (
-            <div className="note-solution-section">
-              <div className="section-label">Note & Key Takeaways:</div>
-              <div className="notes-content">{problem.notes}</div>
+      {/* Workspace Layout Mode Switcher */}
+      <div className="scratchpad-mode-bar">
+        <div className="scratchpad-mode-pills">
+          <button
+            type="button"
+            className={`scratchpad-mode-btn ${workspaceLayout === "code" ? "active" : ""}`}
+            onClick={() => setWorkspaceLayout("code")}
+            title="Code Editor Only"
+          >
+            <Code2 size={13} />
+            <span>Code Only</span>
+          </button>
+          <button
+            type="button"
+            className={`scratchpad-mode-btn ${workspaceLayout === "split" ? "active" : ""}`}
+            onClick={() => setWorkspaceLayout("split")}
+            title="Split Workspace: Code on Left, Rich Notes on Right"
+          >
+            <Columns size={13} />
+            <span>Split View (Code + Notes)</span>
+          </button>
+          <button
+            type="button"
+            className={`scratchpad-mode-btn ${workspaceLayout === "notes" ? "active" : ""}`}
+            onClick={() => setWorkspaceLayout("notes")}
+            title="Rich Notes Only (Bullet points, embedded code, markdown)"
+          >
+            <Edit3 size={13} />
+            <span>Scratch Notes Only</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Interactive Unified Workspace Area */}
+      <div className="flashcard-workspace-frame">
+        {workspaceLayout === "code" && (
+          <div className="workspace-panel-full workspace-panel-code">
+            <CodeScratchpad
+              problemId={problem.id}
+              value={scratchpad}
+              onChange={handleScratchpadChange}
+              onClear={handleClearScratchpad}
+            />
+          </div>
+        )}
+
+        {workspaceLayout === "split" && (
+          <Group orientation="horizontal" className="flashcard-split-group">
+            <Panel defaultSize={50} minSize={25} className="split-panel-code">
+              <CodeScratchpad
+                problemId={problem.id}
+                value={scratchpad}
+                onChange={handleScratchpadChange}
+                onClear={handleClearScratchpad}
+              />
+            </Panel>
+            <Separator className="resizable-split-handle" />
+            <Panel defaultSize={50} minSize={25} className="split-panel-notes">
+              <DualNotepad
+                value={userNotes}
+                onChange={handleUserNotesChange}
+                placeholder={
+                  isNote
+                    ? "Type recall notes or snippets alongside code..."
+                    : "Type scratch notes, bullet points, or snippets alongside your code..."
+                }
+                placeholderCol1="Pad 1: Notes, bullet points, code, or callouts..."
+                placeholderCol2="Pad 2: Notes, bullet points, code, or callouts..."
+                labelCol1="Pad 1"
+                labelCol2="Pad 2"
+                height="100%"
+                allowSplit={false}
+              />
+            </Panel>
+          </Group>
+        )}
+
+        {workspaceLayout === "notes" && (
+          <div className="workspace-panel-full workspace-panel-notes">
+            <DualNotepad
+              value={userNotes}
+              onChange={handleUserNotesChange}
+              placeholder={
+                isNote
+                  ? "Type your recall notes, bullet points, key concepts, or edge cases here..."
+                  : "Type scratch notes, bullet points, edge cases, or embedded code... (supports splitting into 2 columns)"
+              }
+              placeholderCol1="Pad 1: Type notes, bullet points, code, or callouts..."
+              placeholderCol2="Pad 2: Type notes, bullet points, code, or callouts..."
+              labelCol1="Pad 1"
+              labelCol2="Pad 2"
+              height="100%"
+              allowSplit={true}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Progressive Reveal Action Bar */}
+      <div className="hints-action-bar">
+        {Boolean(problem.prompt && (!isNote || hasDistinctPrompt)) && (
+          <button
+            type="button"
+            className={`hint-toggle-btn ${showHints ? "active" : ""}`}
+            onClick={() => setShowHints(!showHints)}
+            title="Toggle Hints"
+          >
+            <Lightbulb size={16} />
+            <span>Hints</span>
+          </button>
+        )}
+
+        <button
+          type="button"
+          className={`hint-toggle-btn ${showSolution ? "active" : ""}`}
+          onClick={() => setShowSolution(!showSolution)}
+          title={isNote ? "Toggle Reference Note" : "Toggle Solution / Notes"}
+        >
+          {showSolution ? (
+            <EyeOff size={16} />
+          ) : isNote ? (
+            <BookOpen size={16} />
+          ) : (
+            <CheckCircle2 size={16} />
+          )}
+          <span>
+            {showSolution
+              ? isNote
+                ? "Hide Note"
+                : "Hide Solution"
+              : isNote
+              ? "Reveal Note / Key Takeaway"
+              : "Reveal Solution / Notes"}
+          </span>
+        </button>
+      </div>
+
+      {/* Hints Section */}
+      {showHints && problem.prompt && (
+        <div className="prompt-section">
+          <div className="section-label">{isNote ? "Recall Prompt:" : "Hints & Constraints:"}</div>
+          <div className="prompt-text">{problem.prompt}</div>
+        </div>
+      )}
+
+      {/* Reference Notes & Solution Section */}
+      {showSolution && (
+        <div className="notes-section">
+          <div className="section-label">
+            {isNote ? "Note & Key Takeaways:" : "Notes & Reference Solution:"}
+          </div>
+          <MarkdownViewer source={problem.notes} className="notes-content" />
+
+          {/* Subtopic Tags */}
+          {problem.tags && problem.tags.length > 0 && (
+            <div className="tag-list">
+              {problem.tags.map((t, i) => (
+                <span key={i} className="tag-pill">
+                  <Tag size={10} /> #{t}
+                </span>
+              ))}
             </div>
           )}
         </div>
-      ) : (
-        /* INTERVIEW PROBLEM VIEW */
-        <>
-          {/* Compact Problem Title Header */}
-          <div className="card-compact-header">
-            <h2 className="problem-title-compact">{problem.title}</h2>
-          </div>
-
-          {/* Python Code Block Scratchpad */}
-          <PythonScratchpad
-            problemId={problem.id}
-            value={scratchpad}
-            onChange={handleScratchpadChange}
-            onClear={handleClearScratchpad}
-          />
-
-          {/* Progressive Reveal Action Bar */}
-          <div className="hints-action-bar">
-            <button
-              type="button"
-              className={`hint-toggle-btn ${showHints ? "active" : ""}`}
-              onClick={() => setShowHints(!showHints)}
-              title="Toggle Hints"
-            >
-              <Lightbulb size={16} />
-              <span>Hints</span>
-            </button>
-
-            <button
-              type="button"
-              className={`hint-toggle-btn ${showSolution ? "active" : ""}`}
-              onClick={() => setShowSolution(!showSolution)}
-              title="Toggle Notes"
-            >
-              <CheckCircle2 size={16} />
-              <span>Notes</span>
-            </button>
-          </div>
-
-          {/* Hints Section */}
-          {showHints && (
-            <div className="prompt-section">
-              <div className="section-label">Hints:</div>
-              <div className="prompt-text">{problem.prompt}</div>
-            </div>
-          )}
-
-          {/* Reference Notes & Solution Section */}
-          {showSolution && (
-            <div className="notes-section">
-              <div className="section-label">Notes:</div>
-              <div className="notes-content">{problem.notes}</div>
-
-              {/* Subtopic Tags */}
-              {problem.tags && problem.tags.length > 0 && (
-                <div className="tag-list">
-                  {problem.tags.map((t, i) => (
-                    <span key={i} className="tag-pill">
-                      <Tag size={10} /> #{t}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </>
       )}
 
       {/* Refined, Always-Available Rolling Cadence Action Bar */}
