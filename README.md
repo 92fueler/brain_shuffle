@@ -40,19 +40,24 @@ flowchart LR
 - [.env.example](.env.example): Environment variable template for database connectivity.
 - [docs/DESIGN.md](docs/DESIGN.md): Detailed system design, data schema, Decks Hub, and rolling cadence specifications.
 - [docs/SNAPSHOT_ARCHITECTURE_SPEC.md](docs/SNAPSHOT_ARCHITECTURE_SPEC.md): Technical specification for native SQLite snapshots and automated recovery.
+- [docs/SUBTEXT_DESIGN.md](docs/SUBTEXT_DESIGN.md): Technical specification for the Subtexts & Idioms track and universal journaling.
+- [docs/DIAGRAM_AND_ASSET_DESIGN.md](docs/DIAGRAM_AND_ASSET_DESIGN.md): Technical specification for image pasting, Excalidraw vector canvas, and dual-format storage.
 - [src/brain_shuffle/](src/brain_shuffle/): Python backend application:
-  - [src/brain_shuffle/models/](src/brain_shuffle/models/): SQLModel entities (`Category`, `Problem`, `ReviewList`, `ReviewLog`).
+  - [src/brain_shuffle/models/](src/brain_shuffle/models/): SQLModel entities (`Category`, `Problem`, `Subtext`, `ReviewList`, `ReviewLog`).
   - [src/brain_shuffle/schemas/](src/brain_shuffle/schemas/): Pydantic validation and serialization schemas.
-  - [src/brain_shuffle/api/](src/brain_shuffle/api/): FastAPI REST endpoints for categories, problems, companies, review lists, shuffle, and backup.
+  - [src/brain_shuffle/api/](src/brain_shuffle/api/): FastAPI REST endpoints for categories, problems, subtexts, companies, review lists, shuffle, and backup.
   - [src/brain_shuffle/services/](src/brain_shuffle/services/): Core logic for rolling intent weighting, native snapshots, and backup serialization.
   - [src/brain_shuffle/cli.py](src/brain_shuffle/cli.py): Command-line tool for snapshotting, data dump, restore, and seeding.
   - [src/brain_shuffle/main.py](src/brain_shuffle/main.py): FastAPI server entrypoint with background snapshot lifecycle worker.
 - [frontend/](frontend/): React + TypeScript single-page application built with Vite:
-  - [frontend/src/components/ShuffleView.tsx](frontend/src/components/ShuffleView.tsx): Study domain: two-state review workflow (Decks Hub $\leftrightarrow$ Active Test Room with direct deck deletion).
-  - [frontend/src/components/ProblemFlashcard.tsx](frontend/src/components/ProblemFlashcard.tsx): Active recall flashcard component.
-  - [frontend/src/components/PythonScratchpad.tsx](frontend/src/components/PythonScratchpad.tsx): CodeMirror 6 multi-language editor.
+  - [frontend/src/components/ShuffleView.tsx](frontend/src/components/ShuffleView.tsx): Study domain: two-state review workflow (Decks Hub <-> Active Test Room with direct deck deletion).
+  - [frontend/src/components/ProblemFlashcard.tsx](frontend/src/components/ProblemFlashcard.tsx): Active recall flashcard component with 3-mode interactive workspace.
+  - [frontend/src/components/SubtextFlashcard.tsx](frontend/src/components/SubtextFlashcard.tsx): Active recall flashcard component for the Subtexts & Idioms track.
+  - [frontend/src/components/CodeScratchpad.tsx](frontend/src/components/CodeScratchpad.tsx): CodeMirror 6 multi-language editor with OneDark styling, Roboto Mono typography, and font size controls.
+  - [frontend/src/components/DualNotepad.tsx](frontend/src/components/DualNotepad.tsx): Single or split two-pane editable notepad with live Markdown preview and quick-action chips.
   - [frontend/src/components/ProblemManager.tsx](frontend/src/components/ProblemManager.tsx): Curate domain: problem inventory, search, filters, non-dismissive editor, and multi-select deck authoring.
   - [frontend/src/components/BackupManager.tsx](frontend/src/components/BackupManager.tsx): Preserve domain: single-card native snapshot manager and JSON portability controls.
+  - [frontend/src/indentation.ts](frontend/src/indentation.ts): Centralized IDE-grade tab stop navigation and soft-tab deletion engine.
 - [data/backups/](data/backups/): Designated storage directory for canonical snapshots (`brain_shuffle_snapshot.db`) and exports.
 
 ---

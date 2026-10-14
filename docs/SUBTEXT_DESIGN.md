@@ -57,7 +57,7 @@ Four distinct archetypes map onto the identical 3-field content structure (`titl
 
 ## 3) Database Architecture & Schema Specification
 
-The subsystem utilizes the existing SQLite relational engine ([src/brain_shuffle/db.py](file:///Users/jian.wu/Desktop/jw-repos/brain_shuffle/src/brain_shuffle/db.py)) configured with Write-Ahead Logging (WAL mode). Unbounded `TEXT` columns accommodate multi-page excerpts and scripts without truncation.
+The subsystem utilizes the existing SQLite relational engine ([src/brain_shuffle/db.py](src/brain_shuffle/db.py)) configured with Write-Ahead Logging (WAL mode). Unbounded `TEXT` columns accommodate multi-page excerpts and scripts without truncation.
 
 ### 3.1 Entity Relationship Diagram
 
@@ -129,7 +129,7 @@ CREATE INDEX ix_subtexts_next_review_due ON subtexts (next_review_due);
 ### 3.3 Field Dictionary
 
 - `id`: `UUID` primary key.
-- `category_id`: Foreign key referencing [src/brain_shuffle/models/category.py](file:///Users/jian.wu/Desktop/jw-repos/brain_shuffle/src/brain_shuffle/models/category.py).
+- `category_id`: Foreign key referencing [src/brain_shuffle/models/category.py](src/brain_shuffle/models/category.py).
 - `title`: Short indexing string (word, idiom, headline, or cluster theme). Maximum 256 characters. Indexed.
 - `original_text`: Unbounded `TEXT` container storing copied paragraphs, multi-speaker dialogue scripts, or comparative sentence lists.
 - `subtext`: Unbounded `TEXT` container storing definition, underlying intent, cultural nuance, or contrastive notes.
@@ -255,12 +255,12 @@ graph TD
 1. **Milestone 1 — Data Layer**:
    - Create SQLModel class `Subtext` and `SubtextReviewLog` in `src/brain_shuffle/models/subtext.py`.
    - Register models in `src/brain_shuffle/models/__init__.py`.
-   - Update `init_db()` in [src/brain_shuffle/db.py](file:///Users/jian.wu/Desktop/jw-repos/brain_shuffle/src/brain_shuffle/db.py).
+   - Update `init_db()` in [src/brain_shuffle/db.py](src/brain_shuffle/db.py).
 2. **Milestone 2 — API Endpoints**:
    - Implement router `src/brain_shuffle/api/subtexts.py` with CRUD and review handlers.
    - Register router in `src/brain_shuffle/main.py`.
    - Add unit tests in `tests/test_subtexts.py`.
 3. **Milestone 3 — Frontend UI & Cards**:
-   - Add TypeScript interfaces in [frontend/src/types.ts](file:///Users/jian.wu/Desktop/jw-repos/brain_shuffle/frontend/src/types.ts).
+   - Add TypeScript interfaces in [frontend/src/types.ts](frontend/src/types.ts).
    - Create `SubtextFlashcard.tsx` and `SubtextModal.tsx`.
    - Integrate into Deck Hub category filtering and active shuffle rotation.

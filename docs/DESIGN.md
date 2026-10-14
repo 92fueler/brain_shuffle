@@ -35,40 +35,51 @@ flowchart LR
 
 ## 2) System Model & Knowledge Tracks
 
-The platform organizes learning materials into two specialized tracks, recognizing that algorithmic challenges and conceptual trivia demand fundamentally different cognitive workflows.
+The platform organizes learning materials into three specialized tracks, recognizing that algorithmic challenges, conceptual trivia, and nuanced subtexts demand distinct cognitive workflows.
 
 ```mermaid
 flowchart TD
     subgraph TrackDetection ["Category Classification Engine"]
         CatSelect["Item Category"]
-        CheckTrack{"Slug is 'coding' or\n'system_design'?"}
+        CheckTrack{"Category Type / Slug?"}
         CatSelect --> CheckTrack
     end
 
-    subgraph ProblemTrack ["Interview Problem Track"]
+    subgraph ProblemTrack ["1. Interview Problem Track ('coding', 'system_design')"]
         PFields["Metadata: Title, Target Companies, Subtopic Tags, Hints, Reference Notes"]
-        PUI["Recall: Title $\to$ Code Editor Scratchpad $\to$ Hints/Notes Reveal $\to$ Rating"]
+        PUI["Recall: Title -> Code Scratchpad / Split View -> Hints/Notes Reveal -> Rating"]
     end
 
-    subgraph NoteTrack ["Active Recall Note Track"]
-        NFields["Metadata: Concept Prompt + Key Takeaway (Zero Companies, Zero Tags)"]
-        NUI["Recall: Prompt Only $\to$ Reveal Key Takeaway $\to$ Rating"]
+    subgraph NoteTrack ["2. Active Recall Note Track ('python', 'cs', 'devops', 'ml')"]
+        NFields["Metadata: Concept Prompt + Key Takeaway Notes (Zero Companies, Zero Tags)"]
+        NUI["Recall: Prompt Only -> Dual Notepad Formulation -> Reveal Takeaway -> Rating"]
     end
 
-    CheckTrack -->|Yes| PFields
-    CheckTrack -->|No| NFields
+    subgraph SubtextTrack ["3. Subtexts & Idioms Track (type: 'subtext')"]
+        SFields["Metadata: Original Text / Expression + Decoded Subtext & Meaning Matrix"]
+        SUI["Recall: Authentic Text -> Decode Intent -> Reveal Subtext -> Rating"]
+    end
+
+    CheckTrack -->|coding / system_design| PFields
+    CheckTrack -->|subtext| SFields
+    CheckTrack -->|standard notes| NFields
     PFields --> PUI
     NFields --> NUI
+    SFields --> SUI
 ```
 
-### 1. Dual-Track Specifications
+### 1. Tri-Track Specifications
 1. **Interview Problem Track** (`coding`, `system_design`):
-   - Focuses on complex problems requiring algorithmic synthesis or architecture diagrams.
-   - Retains full interview metadata: associated target companies, algorithmic subtopic tags, progressive hints, and an embedded code editor.
+   - Focuses on complex problems requiring algorithmic synthesis or architecture drafting.
+   - Retains interview metadata: associated target companies, algorithmic subtopic tags, progressive hints, and an embedded code editor.
 2. **Active Recall Note Track** (`python`, `cs`, `devops`, `ml`, etc.):
-   - Focuses on quick conceptual recall: language syntax nuances, runtime behaviors, gotchas, and definitions.
-   - Strips away extraneous fields (companies, tags, separate title fields); the prompt serves as both the question and row label.
-   - The review experience presents the prompt in isolation, offering a single action to reveal the key takeaway.
+   - Focuses on conceptual recall: language syntax nuances, runtime behaviors, gotchas, and definitions.
+   - Strips away extraneous fields; the prompt serves as both question and row label.
+   - The review experience presents the prompt in isolation, offering dual notepads to type recall notes before revealing the reference answer.
+3. **Subtexts & Idioms Track** (category type: `subtext`):
+   - Focuses on authentic linguistic nuance, dialogue decoding, business context idioms, and unspoken intent.
+   - Pairs unbounded original source text with structured decoded meaning and nuance breakdowns.
+   - Distinct flashcard review flow in [frontend/src/components/SubtextFlashcard.tsx](frontend/src/components/SubtextFlashcard.tsx).
 
 ### 2. Category Taxonomy & Visual Hierarchy
 Categories structure the domain space and provide visual orientation across all views:
@@ -171,6 +182,26 @@ The curation interface ([frontend/src/components/ProblemManager.tsx](frontend/sr
 - **Multi-Select Deck Authoring**: Selecting multiple problem checkboxes reveals a floating action bar to save the selection as a persistent custom deck or update review cadences in bulk.
 - **Non-Dismissive Modal Dialogs**: Creation and editing modals require explicit confirmation (`Save` or `Cancel`), preventing accidental dismissal on backdrop clicks. Textareas support automatic indentation on `Enter` and 4-space indentation on `Tab`.
 
+### 4. Interactive Unified Workspaces & Indentation Engine
+The active recall interface provides a flexible three-mode workspace directly inside [frontend/src/components/ProblemFlashcard.tsx](frontend/src/components/ProblemFlashcard.tsx):
+- **Workspace Layout Modes**:
+  1. `Code Only`: Dedicated CodeMirror 6 scratchpad for syntax synthesis and algorithmic drafting.
+  2. `Split View (Code + Notes)`: Resizable horizontal split view pairing the code scratchpad on the left with dual notes on the right.
+  3. `Scratch Notes Only`: Full-width note workspace for jotting conceptual bullets, edge cases, and callouts.
+- **Dual Notepad (`DualNotepad.tsx`)**:
+  - Supports single-column or split 2-column editable notepads with synchronized markdown previews.
+  - Quick-action chips for rapid formatting: `List`, `Code` (with language selector), `Callout`, and `Clear`.
+- **IDE-Grade Code Scratchpad (`CodeScratchpad.tsx`)**:
+  - Built on CodeMirror 6 with the OneDark theme and Roboto Mono typography.
+  - Dynamic language selector supporting 10 languages (Python, TypeScript, JavaScript, C++, Java, Go, Rust, SQL, JSON, Text).
+  - Integrated font size adjustment controls (`A- / A+`) stepping between 11px and 20px.
+- **Centralized Indentation Engine (`frontend/src/indentation.ts`)**:
+  - Implements VS Code / Monaco tab stop behavior (`editor.useTabStops: true`):
+    - `Tab`: Advances cursor to the next 4-space tab stop (`4 - (col % 4)`); indents whole selections when text is highlighted.
+    - `Backspace`: Deletes backward to the previous 4-space tab stop in a single stroke when preceded by spaces (`toDelete > 1`).
+    - `changeByRange`: Ensures atomic cursor tracking and selection maintenance in CodeMirror transactions.
+    - Modifier key filtering: Preserves browser shortcuts (`Ctrl+Tab`, `Cmd+Tab`) and OS line/word deletions (`Cmd+Backspace`, `Option+Backspace`).
+
 ---
 
 ## 4) Rolling Cadence & Shuffle Engine
@@ -272,3 +303,12 @@ Rather than relying on brittle text serialization, backups leverage SQLite's nat
   - Restoring a snapshot requires confirmation through a guarded modal dialog in [frontend/src/components/BackupManager.tsx](frontend/src/components/BackupManager.tsx).
   - Prior to restoration, an automatic rollback copy (`data/brain_shuffle.db.rollback.bak`) is created. If the snapshot is corrupt, the system reverts automatically.
 - **Secondary JSON Portability**: A collapsible portability drawer provides JSON export and import for transferring libraries between different operating systems or machines.
+
+---
+
+## 6) Subsystem Specifications & Deep Dives
+
+Detailed technical designs and implementation specifications for platform subsystems are maintained in dedicated documents:
+- [SNAPSHOT_ARCHITECTURE_SPEC.md](docs/SNAPSHOT_ARCHITECTURE_SPEC.md): Native SQLite snapshot engine, WAL concurrency, automated lifespan rotation, and three-stage rollback recovery.
+- [SUBTEXT_DESIGN.md](docs/SUBTEXT_DESIGN.md): Subtext and idioms track, unbounded text containment, dialogue decoding, and nuance matrix presentation.
+- [DIAGRAM_AND_ASSET_DESIGN.md](docs/DIAGRAM_AND_ASSET_DESIGN.md): Clipboard image pasting, Excalidraw vector canvas integration, dual `scene_json` / `svg_data` storage, full-screen Zen overlay, and SQLite BLOB persistence.
