@@ -197,6 +197,17 @@ export const DualNotepad: React.FC<DualNotepadProps> = ({
     }
   };
 
+  // Extracts leading and trailing whitespace from a selection so delimiters wrap strictly around core text
+  const extractSurroundingWhitespace = (text: string) => {
+    const leadingMatch = text.match(/^[ \t\r\n]+/);
+    const leadingWs = leadingMatch ? leadingMatch[0] : "";
+    const remaining = text.slice(leadingWs.length);
+    const trailingMatch = remaining.match(/[ \t\r\n]+$/);
+    const trailingWs = trailingMatch ? trailingMatch[0] : "";
+    const core = remaining.slice(0, remaining.length - trailingWs.length);
+    return { leadingWs, core, trailingWs };
+  };
+
   // Wraps selected text in **bold** or toggles existing bold
   const wrapOrInsertBold = (targetCol: 1 | 2) => {
     ensureEditMode(targetCol);
@@ -216,24 +227,29 @@ export const DualNotepad: React.FC<DualNotepadProps> = ({
       const after = currentVal.slice(selectionEnd);
 
       if (selectedText.length > 0) {
-        if (
-          selectedText.startsWith("**") &&
-          selectedText.endsWith("**") &&
-          selectedText.length >= 4
-        ) {
-          const unwrapped = selectedText.slice(2, -2);
-          nextVal = before + unwrapped + after;
-          cursorStart = selectionStart;
-          cursorEnd = selectionStart + unwrapped.length;
-        } else if (before.endsWith("**") && after.startsWith("**")) {
-          nextVal = before.slice(0, -2) + selectedText + after.slice(2);
-          cursorStart = selectionStart - 2;
-          cursorEnd = cursorStart + selectedText.length;
+        const { leadingWs, core, trailingWs } = extractSurroundingWhitespace(selectedText);
+
+        if (core.length > 0) {
+          if (core.startsWith("**") && core.endsWith("**") && core.length >= 4) {
+            const unwrapped = core.slice(2, -2).trim();
+            nextVal = before + leadingWs + unwrapped + trailingWs + after;
+            cursorStart = selectionStart + leadingWs.length;
+            cursorEnd = cursorStart + unwrapped.length;
+          } else if (before.endsWith("**") && after.startsWith("**")) {
+            nextVal = before.slice(0, -2) + selectedText + after.slice(2);
+            cursorStart = selectionStart - 2;
+            cursorEnd = cursorStart + selectedText.length;
+          } else {
+            const wrapped = `**${core}**`;
+            nextVal = before + leadingWs + wrapped + trailingWs + after;
+            cursorStart = selectionStart + leadingWs.length;
+            cursorEnd = cursorStart + wrapped.length;
+          }
         } else {
-          const wrapped = `**${selectedText}**`;
-          nextVal = before + wrapped + after;
-          cursorStart = selectionStart;
-          cursorEnd = selectionStart + wrapped.length;
+          const placeholder = "**bold**";
+          nextVal = before + placeholder + after;
+          cursorStart = selectionStart + 2;
+          cursorEnd = cursorStart + 4;
         }
       } else {
         const placeholder = "**bold**";
@@ -282,30 +298,39 @@ export const DualNotepad: React.FC<DualNotepadProps> = ({
       const after = currentVal.slice(selectionEnd);
 
       if (selectedText.length > 0) {
-        if (
-          selectedText.startsWith("*") &&
-          selectedText.endsWith("*") &&
-          selectedText.length >= 2 &&
-          !selectedText.startsWith("**")
-        ) {
-          const unwrapped = selectedText.slice(1, -1);
-          nextVal = before + unwrapped + after;
-          cursorStart = selectionStart;
-          cursorEnd = selectionStart + unwrapped.length;
-        } else if (
-          before.endsWith("*") &&
-          !before.endsWith("**") &&
-          after.startsWith("*") &&
-          !after.startsWith("**")
-        ) {
-          nextVal = before.slice(0, -1) + selectedText + after.slice(1);
-          cursorStart = selectionStart - 1;
-          cursorEnd = cursorStart + selectedText.length;
+        const { leadingWs, core, trailingWs } = extractSurroundingWhitespace(selectedText);
+
+        if (core.length > 0) {
+          if (
+            core.startsWith("*") &&
+            core.endsWith("*") &&
+            core.length >= 2 &&
+            !core.startsWith("**")
+          ) {
+            const unwrapped = core.slice(1, -1).trim();
+            nextVal = before + leadingWs + unwrapped + trailingWs + after;
+            cursorStart = selectionStart + leadingWs.length;
+            cursorEnd = cursorStart + unwrapped.length;
+          } else if (
+            before.endsWith("*") &&
+            !before.endsWith("**") &&
+            after.startsWith("*") &&
+            !after.startsWith("**")
+          ) {
+            nextVal = before.slice(0, -1) + selectedText + after.slice(1);
+            cursorStart = selectionStart - 1;
+            cursorEnd = cursorStart + selectedText.length;
+          } else {
+            const wrapped = `*${core}*`;
+            nextVal = before + leadingWs + wrapped + trailingWs + after;
+            cursorStart = selectionStart + leadingWs.length;
+            cursorEnd = cursorStart + wrapped.length;
+          }
         } else {
-          const wrapped = `*${selectedText}*`;
-          nextVal = before + wrapped + after;
-          cursorStart = selectionStart;
-          cursorEnd = selectionStart + wrapped.length;
+          const placeholder = "*italic*";
+          nextVal = before + placeholder + after;
+          cursorStart = selectionStart + 1;
+          cursorEnd = cursorStart + 6;
         }
       } else {
         const placeholder = "*italic*";
@@ -354,54 +379,58 @@ export const DualNotepad: React.FC<DualNotepadProps> = ({
       const after = currentVal.slice(selectionEnd);
 
       if (selectedText.length > 0) {
-        if (!colorHex) {
-          // Clearing color
-          const spanOuterRegex = /^<span style="color:\s*[^"]*">([\s\S]*)<\/span>$/i;
-          if (spanOuterRegex.test(selectedText)) {
-            const stripped = selectedText.replace(spanOuterRegex, "$1");
-            nextVal = before + stripped + after;
-            cursorStart = selectionStart;
-            cursorEnd = selectionStart + stripped.length;
-          } else if (/<span style="color:\s*[^"]*">/i.test(selectedText)) {
-            const stripped = selectedText.replace(/<span style="color:\s*[^"]*">([\s\S]*?)<\/span>/gi, "$1");
-            nextVal = before + stripped + after;
-            cursorStart = selectionStart;
-            cursorEnd = selectionStart + stripped.length;
-          } else {
-            const openTagMatch = before.match(/<span style="color:\s*[^"]*">$/i);
-            const closeTagMatch = after.match(/^<\/span>/i);
-            if (openTagMatch && closeTagMatch) {
-              nextVal = before.slice(0, -openTagMatch[0].length) + selectedText + after.slice(closeTagMatch[0].length);
-              cursorStart = selectionStart - openTagMatch[0].length;
-              cursorEnd = cursorStart + selectedText.length;
+        const { leadingWs, core, trailingWs } = extractSurroundingWhitespace(selectedText);
+
+        if (core.length > 0) {
+          if (!colorHex) {
+            // Clearing color
+            const spanOuterRegex = /^<span style="color:\s*[^"]*">([\s\S]*)<\/span>$/i;
+            if (spanOuterRegex.test(core)) {
+              const stripped = core.replace(spanOuterRegex, "$1");
+              nextVal = before + leadingWs + stripped + trailingWs + after;
+              cursorStart = selectionStart + leadingWs.length;
+              cursorEnd = cursorStart + stripped.length;
+            } else if (/<span style="color:\s*[^"]*">/i.test(core)) {
+              const stripped = core.replace(/<span style="color:\s*[^"]*">([\s\S]*?)<\/span>/gi, "$1");
+              nextVal = before + leadingWs + stripped + trailingWs + after;
+              cursorStart = selectionStart + leadingWs.length;
+              cursorEnd = cursorStart + stripped.length;
             } else {
-              return;
+              const openTagMatch = before.match(/<span style="color:\s*[^"]*">$/i);
+              const closeTagMatch = after.match(/^<\/span>/i);
+              if (openTagMatch && closeTagMatch) {
+                nextVal = before.slice(0, -openTagMatch[0].length) + selectedText + after.slice(closeTagMatch[0].length);
+                cursorStart = selectionStart - openTagMatch[0].length;
+                cursorEnd = cursorStart + selectedText.length;
+              } else {
+                return;
+              }
             }
-          }
-        } else {
-          // Applying colorHex
-          const spanOuterRegex = /^<span style="color:\s*[^"]*">([\s\S]*)<\/span>$/i;
-          if (spanOuterRegex.test(selectedText)) {
-            const inner = selectedText.replace(spanOuterRegex, "$1");
-            const wrapped = `<span style="color: ${colorHex}">${inner}</span>`;
-            nextVal = before + wrapped + after;
-            cursorStart = selectionStart;
-            cursorEnd = selectionStart + wrapped.length;
           } else {
-            const openTagMatch = before.match(/<span style="color:\s*[^"]*">$/i);
-            const closeTagMatch = after.match(/^<\/span>/i);
-            if (openTagMatch && closeTagMatch) {
-              const beforeClean = before.slice(0, -openTagMatch[0].length);
-              const afterClean = after.slice(closeTagMatch[0].length);
-              const wrapped = `<span style="color: ${colorHex}">${selectedText}</span>`;
-              nextVal = beforeClean + wrapped + afterClean;
-              cursorStart = beforeClean.length;
+            // Applying colorHex
+            const spanOuterRegex = /^<span style="color:\s*[^"]*">([\s\S]*)<\/span>$/i;
+            if (spanOuterRegex.test(core)) {
+              const inner = core.replace(spanOuterRegex, "$1");
+              const wrapped = `<span style="color: ${colorHex}">${inner}</span>`;
+              nextVal = before + leadingWs + wrapped + trailingWs + after;
+              cursorStart = selectionStart + leadingWs.length;
               cursorEnd = cursorStart + wrapped.length;
             } else {
-              const wrapped = `<span style="color: ${colorHex}">${selectedText}</span>`;
-              nextVal = before + wrapped + after;
-              cursorStart = selectionStart;
-              cursorEnd = selectionStart + wrapped.length;
+              const openTagMatch = before.match(/<span style="color:\s*[^"]*">$/i);
+              const closeTagMatch = after.match(/^<\/span>/i);
+              if (openTagMatch && closeTagMatch) {
+                const beforeClean = before.slice(0, -openTagMatch[0].length);
+                const afterClean = after.slice(closeTagMatch[0].length);
+                const wrapped = `<span style="color: ${colorHex}">${core}</span>`;
+                nextVal = beforeClean + leadingWs + wrapped + trailingWs + afterClean;
+                cursorStart = beforeClean.length + leadingWs.length;
+                cursorEnd = cursorStart + wrapped.length;
+              } else {
+                const wrapped = `<span style="color: ${colorHex}">${core}</span>`;
+                nextVal = before + leadingWs + wrapped + trailingWs + after;
+                cursorStart = selectionStart + leadingWs.length;
+                cursorEnd = cursorStart + wrapped.length;
+              }
             }
           }
         }

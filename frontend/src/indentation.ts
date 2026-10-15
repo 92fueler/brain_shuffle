@@ -176,7 +176,59 @@ export function normalizeMarkdown(source: string): string {
     result.push(line);
   }
 
-  return result.join("\n");
+  const rawNormalized = result.join("\n");
+  return normalizeEmphasisSpaces(rawNormalized);
+}
+
+/**
+ * Normalizes bold and italic markdown delimiters that have leading or trailing whitespace
+ * inside the asterisks (e.g. "**word **" or "** word**").
+ * In CommonMark, a delimiter run cannot be preceded or followed by whitespace, causing
+ * such text to fail to render as bold/italic. Normalizing moves the whitespace outside
+ * the delimiter run while preserving code blocks and inline code.
+ */
+export function normalizeEmphasisSpaces(text: string): string {
+  if (!text || !text.includes("*")) return text;
+
+  // Preserve fenced code blocks and inline code spans
+  const parts = text.split(/(```[\s\S]*?```|`[^`\n]*`)/g);
+  for (let c = 0; c < parts.length; c += 2) {
+    let segment = parts[c];
+    if (!segment || !segment.includes("*")) continue;
+
+    // 1. Bold with loose spaces: "** text **" -> " **text** "
+    if (segment.includes("**")) {
+      const tokens = segment.split("**");
+      const pairCount = Math.floor((tokens.length - 1) / 2);
+      for (let p = 0; p < pairCount; p++) {
+        const insideIndex = p * 2 + 1;
+        const inside = tokens[insideIndex];
+        // Do not span across paragraph boundaries
+        if (!inside.includes("\n\n")) {
+          const leadingMatch = inside.match(/^[ \t\r\n]+/);
+          const trailingMatch = inside.match(/[ \t\r\n]+$/);
+          if (leadingMatch || trailingMatch) {
+            const leadingWs = leadingMatch ? leadingMatch[0] : "";
+            const trailingWs = trailingMatch ? trailingMatch[0] : "";
+            const trimmed = inside.slice(leadingWs.length, inside.length - trailingWs.length);
+            if (trimmed.length > 0) {
+              tokens[insideIndex - 1] += leadingWs;
+              tokens[insideIndex + 1] = trailingWs + tokens[insideIndex + 1];
+              tokens[insideIndex] = trimmed;
+            }
+          }
+        }
+      }
+      segment = tokens.join("**");
+    }
+
+    // 2. Single-asterisk italic with trailing or leading whitespace: "*text *" -> "*text* "
+    segment = segment.replace(/(?<!\*)\*([ \t]+)([^*\n]+?)\*(?!\*)/g, "$1*$2*");
+    segment = segment.replace(/(?<!\*)\*([^*\n]+?)([ \t]+)\*(?!\*)/g, "*$1*$2");
+
+    parts[c] = segment;
+  }
+  return parts.join("");
 }
 
 /**
