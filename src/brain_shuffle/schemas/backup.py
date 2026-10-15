@@ -20,6 +20,7 @@ class BackupProblem(BaseModel):
     retention_score: float = 1.0
     cadence: str = "weekly"
     is_starred: bool = False
+    is_difficult: bool = False
     last_reviewed_at: Optional[datetime] = None
     next_review_due: Optional[datetime] = None
     review_logs: List[BackupReviewLog] = []
@@ -32,6 +33,7 @@ class BackupSubtext(BaseModel):
     tags: List[str] = []
     cadence: str = "weekly"
     is_starred: bool = False
+    is_difficult: bool = False
     review_count: int = 0
     retention_score: float = 1.0
     last_reviewed_at: Optional[datetime] = None

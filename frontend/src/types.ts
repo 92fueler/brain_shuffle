@@ -18,6 +18,7 @@ export interface Problem {
   retention_score: number;
   cadence?: string;
   is_starred?: boolean;
+  is_difficult?: boolean;
   last_reviewed_at?: string | null;
   next_review_due?: string | null;
   created_at: string;
@@ -33,6 +34,7 @@ export interface ProblemCreatePayload {
   companies: string[];
   cadence?: string;
   is_starred?: boolean;
+  is_difficult?: boolean;
 }
 
 export type ReviewAction =
@@ -93,6 +95,7 @@ export interface BackupPayload {
       retention_score: number;
       cadence?: string;
       is_starred?: boolean;
+      is_difficult?: boolean;
       last_reviewed_at?: string | null;
       next_review_due?: string | null;
       review_logs?: {
@@ -109,6 +112,7 @@ export interface BackupPayload {
       tags: string[];
       cadence?: string;
       is_starred?: boolean;
+      is_difficult?: boolean;
       review_count: number;
       retention_score: number;
       last_reviewed_at?: string | null;
@@ -144,6 +148,7 @@ export interface Subtext {
   tags: string[];
   cadence: string;
   is_starred?: boolean;
+  is_difficult?: boolean;
   review_count: number;
   retention_score: number;
   last_reviewed_at?: string | null;
@@ -160,6 +165,7 @@ export interface SubtextCreatePayload {
   tags?: string[];
   cadence?: string;
   is_starred?: boolean;
+  is_difficult?: boolean;
 }
 
 export interface SubtextUpdatePayload {
@@ -170,6 +176,7 @@ export interface SubtextUpdatePayload {
   tags?: string[];
   cadence?: string;
   is_starred?: boolean;
+  is_difficult?: boolean;
 }
 
 export const isSubtextCategory = (slug?: string | null): boolean => {

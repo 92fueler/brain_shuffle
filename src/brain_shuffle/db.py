@@ -36,6 +36,8 @@ def init_db() -> None:
                 "ALTER TABLE problems ADD COLUMN cadence VARCHAR DEFAULT 'weekly'",
                 "ALTER TABLE problems ADD COLUMN is_starred BOOLEAN DEFAULT 0",
                 "ALTER TABLE subtexts ADD COLUMN is_starred BOOLEAN DEFAULT 0",
+                "ALTER TABLE problems ADD COLUMN is_difficult BOOLEAN DEFAULT 0",
+                "ALTER TABLE subtexts ADD COLUMN is_difficult BOOLEAN DEFAULT 0",
             ):
                 try:
                     session.connection().execute(text(ddl))

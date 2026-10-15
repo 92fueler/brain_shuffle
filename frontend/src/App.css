@@ -2531,6 +2531,34 @@ html {
   font-weight: 600;
 }
 
+.difficult-filter-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-muted);
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 3px 9px;
+  border-radius: 12px;
+  transition: all 0.15s ease;
+}
+
+.difficult-filter-toggle-btn:hover {
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.45);
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.difficult-filter-toggle-btn.active {
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.6);
+  background: rgba(239, 68, 68, 0.15);
+  font-weight: 600;
+}
+
 .row-select-checkbox-btn {
   display: inline-flex;
   align-items: center;
@@ -2550,6 +2578,13 @@ html {
 
 .row-select-checkbox-btn.selected {
   color: #818cf8;
+}
+
+.problem-markers-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
 }
 
 .problem-star-btn {
@@ -2576,8 +2611,36 @@ html {
   filter: drop-shadow(0 0 4px rgba(251, 191, 36, 0.4));
 }
 
+.problem-difficult-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: rgba(148, 163, 184, 0.42);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  transition: color 0.15s ease, transform 0.12s ease;
+}
+
+.problem-difficult-btn:hover {
+  color: #ef4444;
+  transform: scale(1.12);
+}
+
+.problem-difficult-btn.difficult {
+  color: #ef4444;
+  filter: drop-shadow(0 0 4px rgba(239, 68, 68, 0.45));
+}
+
 .problem-row-starred {
   border-color: rgba(251, 191, 36, 0.28);
+}
+
+.problem-row-difficult {
+  border-color: rgba(239, 68, 68, 0.28);
 }
 
 .problem-row-selected {

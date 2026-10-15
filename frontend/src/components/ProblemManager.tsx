@@ -36,6 +36,7 @@ import {
   Maximize2,
   Minimize2,
   Star,
+  Circle,
 } from "lucide-react";
 import { ProblemFlashcard } from "./ProblemFlashcard";
 import { SubtextFlashcard } from "./SubtextFlashcard";
@@ -98,6 +99,7 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
   const [search, setSearch] = useState("");
   const [selectedCompanyFilter, setSelectedCompanyFilter] = useState<string | null>(null);
   const [showStarredOnly, setShowStarredOnly] = useState(false);
+  const [showDifficultOnly, setShowDifficultOnly] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [isAddModalMaximized, setIsAddModalMaximized] = useState(false);
   const [showCatModal, setShowCatModal] = useState(false);
@@ -554,12 +556,19 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
   };
 
   const [optimisticStars, setOptimisticStars] = useState<Record<string, boolean>>({});
+  const [optimisticDifficult, setOptimisticDifficult] = useState<Record<string, boolean>>({});
 
   const isProblemStarred = (problem: Problem) =>
     problem.id in optimisticStars ? optimisticStars[problem.id] : Boolean(problem.is_starred);
 
   const isSubtextStarred = (subtext: Subtext) =>
     subtext.id in optimisticStars ? optimisticStars[subtext.id] : Boolean(subtext.is_starred);
+
+  const isProblemDifficult = (problem: Problem) =>
+    problem.id in optimisticDifficult ? optimisticDifficult[problem.id] : Boolean(problem.is_difficult);
+
+  const isSubtextDifficult = (subtext: Subtext) =>
+    subtext.id in optimisticDifficult ? optimisticDifficult[subtext.id] : Boolean(subtext.is_difficult);
 
   const handleToggleStar = async (problem: Problem, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -588,6 +597,40 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
     } catch (err) {
       console.error("Failed to toggle subtext important marker", err);
       setOptimisticStars((prev) => {
+        const copy = { ...prev };
+        delete copy[subtext.id];
+        return copy;
+      });
+    }
+  };
+
+  const handleToggleDifficult = async (problem: Problem, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const nextVal = !isProblemDifficult(problem);
+    setOptimisticDifficult((prev) => ({ ...prev, [problem.id]: nextVal }));
+    try {
+      await updateProblem(problem.id, { is_difficult: nextVal });
+      await onRefresh();
+    } catch (err) {
+      console.error("Failed to toggle difficult marker", err);
+      setOptimisticDifficult((prev) => {
+        const copy = { ...prev };
+        delete copy[problem.id];
+        return copy;
+      });
+    }
+  };
+
+  const handleToggleSubtextDifficult = async (subtext: Subtext, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const nextVal = !isSubtextDifficult(subtext);
+    setOptimisticDifficult((prev) => ({ ...prev, [subtext.id]: nextVal }));
+    try {
+      await updateSubtext(subtext.id, { is_difficult: nextVal });
+      await onRefresh();
+    } catch (err) {
+      console.error("Failed to toggle subtext difficult marker", err);
+      setOptimisticDifficult((prev) => {
         const copy = { ...prev };
         delete copy[subtext.id];
         return copy;
@@ -646,7 +689,7 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
       });
 
   const filteredProblems = baseCategoryProblems
-    .filter((p) => !showStarredOnly || isProblemStarred(p))
+    .filter((p) => (!showStarredOnly || isProblemStarred(p)) && (!showDifficultOnly || isProblemDifficult(p)))
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
   const baseCategorySubtexts = !isSubtextSelected
@@ -664,12 +707,16 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
       });
 
   const filteredSubtexts = baseCategorySubtexts
-    .filter((s) => !showStarredOnly || isSubtextStarred(s))
+    .filter((s) => (!showStarredOnly || isSubtextStarred(s)) && (!showDifficultOnly || isSubtextDifficult(s)))
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
   const starredCount = isSubtextSelected
     ? baseCategorySubtexts.filter((s) => isSubtextStarred(s)).length
     : baseCategoryProblems.filter((p) => isProblemStarred(p)).length;
+
+  const difficultCount = isSubtextSelected
+    ? baseCategorySubtexts.filter((s) => isSubtextDifficult(s)).length
+    : baseCategoryProblems.filter((p) => isProblemDifficult(p)).length;
 
   const isAllVisibleSelected =
     filteredProblems.length > 0 && filteredProblems.every((p) => selectedProblemIds.has(p.id));
@@ -912,7 +959,7 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
         </div>
       )}
 
-      {/* List Header with Select All, Important Filter, and Count */}
+      {/* List Header with Select All, Important/Difficult Filters, and Count */}
       <div className="problem-list-controls">
         <div className="problem-list-controls-left">
           {!isSubtextSelected ? (
@@ -937,6 +984,15 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
             <Star size={12.5} fill={showStarredOnly ? "currentColor" : "none"} />
             <span>Important{starredCount > 0 ? ` (${starredCount})` : ""}</span>
           </button>
+          <button
+            type="button"
+            className={`difficult-filter-toggle-btn ${showDifficultOnly ? "active" : ""}`}
+            onClick={() => setShowDifficultOnly((prev) => !prev)}
+            title={showDifficultOnly ? "Show all entries" : "Show only entries marked as very difficult"}
+          >
+            <Circle size={11.5} fill={showDifficultOnly ? "currentColor" : "none"} />
+            <span>Difficult{difficultCount > 0 ? ` (${difficultCount})` : ""}</span>
+          </button>
         </div>
         <span className="problem-list-count">
           {isSubtextSelected
@@ -957,6 +1013,7 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
             const isExpanded = expandedId === problem.id;
             const isSelected = selectedProblemIds.has(problem.id);
             const isStarred = isProblemStarred(problem);
+            const isDifficult = isProblemDifficult(problem);
             const catName = getCategoryName(problem.category_id);
             const catSlug = getCategorySlug(problem.category_id);
             const catTheme = getCategoryTheme(catSlug || catName);
@@ -965,10 +1022,10 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
             return (
               <div
                 key={problem.id}
-                className={`problem-item ${isExpanded ? "expanded" : ""} ${isSelected ? "problem-row-selected" : ""} ${isStarred ? "problem-row-starred" : ""}`}
+                className={`problem-item ${isExpanded ? "expanded" : ""} ${isSelected ? "problem-row-selected" : ""} ${isStarred ? "problem-row-starred" : ""} ${isDifficult ? "problem-row-difficult" : ""}`}
                 onClick={() => setExpandedId(isExpanded ? null : problem.id)}
               >
-                {/* Collapsed Row: Checkbox, Category Tag, Important Star Marker, Problem Title, Actions */}
+                {/* Collapsed Row: Checkbox, Category Tag, Important Star & Difficult Red Circle Markers, Problem Title, Actions */}
                 <div className="problem-row-header">
                   <div className="problem-title-wrapper">
                     <button
@@ -985,14 +1042,24 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
                     >
                       {formattedCatName}
                     </span>
-                    <button
-                      type="button"
-                      className={`problem-star-btn ${isStarred ? "starred" : ""}`}
-                      onClick={(e) => handleToggleStar(problem, e)}
-                      title={isStarred ? "Unmark as important" : "Mark as important"}
-                    >
-                      <Star size={14} fill={isStarred ? "currentColor" : "none"} />
-                    </button>
+                    <div className="problem-markers-group">
+                      <button
+                        type="button"
+                        className={`problem-star-btn ${isStarred ? "starred" : ""}`}
+                        onClick={(e) => handleToggleStar(problem, e)}
+                        title={isStarred ? "Unmark as important" : "Mark as important"}
+                      >
+                        <Star size={14} fill={isStarred ? "currentColor" : "none"} />
+                      </button>
+                      <button
+                        type="button"
+                        className={`problem-difficult-btn ${isDifficult ? "difficult" : ""}`}
+                        onClick={(e) => handleToggleDifficult(problem, e)}
+                        title={isDifficult ? "Unmark as very difficult" : "Mark as very difficult"}
+                      >
+                        <Circle size={12.5} fill={isDifficult ? "currentColor" : "none"} />
+                      </button>
+                    </div>
                     <h3 className="problem-title-text">{problem.title}</h3>
                   </div>
                   <div className="problem-row-actions">
@@ -1051,6 +1118,7 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
           {filteredSubtexts.map((subtext) => {
             const isExpanded = expandedSubtextId === subtext.id;
             const isStarred = isSubtextStarred(subtext);
+            const isDifficult = isSubtextDifficult(subtext);
             const catName = getCategoryName(subtext.category_id);
             const catSlug = getCategorySlug(subtext.category_id);
             const catTheme = getCategoryTheme(catSlug || catName);
@@ -1059,7 +1127,7 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
             return (
               <div
                 key={subtext.id}
-                className={`problem-item ${isExpanded ? "expanded" : ""} ${isStarred ? "problem-row-starred" : ""}`}
+                className={`problem-item ${isExpanded ? "expanded" : ""} ${isStarred ? "problem-row-starred" : ""} ${isDifficult ? "problem-row-difficult" : ""}`}
                 style={{ borderLeft: "3px solid #818cf8" }}
                 onClick={() => setExpandedSubtextId(isExpanded ? null : subtext.id)}
               >
@@ -1071,14 +1139,24 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
                     >
                       {formattedCatName}
                     </span>
-                    <button
-                      type="button"
-                      className={`problem-star-btn ${isStarred ? "starred" : ""}`}
-                      onClick={(e) => handleToggleSubtextStar(subtext, e)}
-                      title={isStarred ? "Unmark as important" : "Mark as important"}
-                    >
-                      <Star size={14} fill={isStarred ? "currentColor" : "none"} />
-                    </button>
+                    <div className="problem-markers-group">
+                      <button
+                        type="button"
+                        className={`problem-star-btn ${isStarred ? "starred" : ""}`}
+                        onClick={(e) => handleToggleSubtextStar(subtext, e)}
+                        title={isStarred ? "Unmark as important" : "Mark as important"}
+                      >
+                        <Star size={14} fill={isStarred ? "currentColor" : "none"} />
+                      </button>
+                      <button
+                        type="button"
+                        className={`problem-difficult-btn ${isDifficult ? "difficult" : ""}`}
+                        onClick={(e) => handleToggleSubtextDifficult(subtext, e)}
+                        title={isDifficult ? "Unmark as very difficult" : "Mark as very difficult"}
+                      >
+                        <Circle size={12.5} fill={isDifficult ? "currentColor" : "none"} />
+                      </button>
+                    </div>
                     <span className="subtext-badge-pill" style={{ marginRight: "6px" }}>
                       ✨ Subtext
                     </span>

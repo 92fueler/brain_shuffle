@@ -53,6 +53,7 @@ class ProblemBase(BaseModel):
     companies: List[str] = []
     cadence: str = "weekly"
     is_starred: bool = False
+    is_difficult: bool = False
 
     @field_validator("companies", mode="before")
     @classmethod
@@ -78,6 +79,7 @@ class ProblemUpdate(BaseModel):
     companies: Optional[List[str]] = None
     cadence: Optional[str] = None
     is_starred: Optional[bool] = None
+    is_difficult: Optional[bool] = None
 
     @field_validator("companies", mode="before")
     @classmethod
@@ -102,6 +104,7 @@ class ProblemRead(ProblemBase):
     retention_score: float
     cadence: str = "weekly"
     is_starred: bool = False
+    is_difficult: bool = False
     last_reviewed_at: Optional[datetime] = None
     next_review_due: Optional[datetime] = None
     created_at: datetime

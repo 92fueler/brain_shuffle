@@ -59,6 +59,7 @@ class BackupService:
                         retention_score=prob.retention_score,
                         cadence=prob.cadence,
                         is_starred=bool(getattr(prob, "is_starred", False)),
+                        is_difficult=bool(getattr(prob, "is_difficult", False)),
                         last_reviewed_at=prob.last_reviewed_at,
                         next_review_due=prob.next_review_due,
                         review_logs=backup_logs,
@@ -91,6 +92,7 @@ class BackupService:
                         tags=sub.tags or [],
                         cadence=sub.cadence,
                         is_starred=bool(getattr(sub, "is_starred", False)),
+                        is_difficult=bool(getattr(sub, "is_difficult", False)),
                         review_count=sub.review_count,
                         retention_score=sub.retention_score,
                         last_reviewed_at=sub.last_reviewed_at,
@@ -175,6 +177,7 @@ class BackupService:
                         retention_score=prob_data.retention_score,
                         cadence=getattr(prob_data, "cadence", "weekly") or "weekly",
                         is_starred=bool(getattr(prob_data, "is_starred", False)),
+                        is_difficult=bool(getattr(prob_data, "is_difficult", False)),
                         last_reviewed_at=prob_data.last_reviewed_at,
                         next_review_due=prob_data.next_review_due,
                     )
@@ -192,6 +195,8 @@ class BackupService:
                         problem.cadence = prob_data.cadence
                     if hasattr(prob_data, "is_starred"):
                         problem.is_starred = bool(prob_data.is_starred)
+                    if hasattr(prob_data, "is_difficult"):
+                        problem.is_difficult = bool(prob_data.is_difficult)
                     problem.last_reviewed_at = prob_data.last_reviewed_at
                     problem.next_review_due = prob_data.next_review_due
                     self.session.add(problem)
@@ -236,6 +241,7 @@ class BackupService:
                         tags=sub_data.tags,
                         cadence=getattr(sub_data, "cadence", "weekly") or "weekly",
                         is_starred=bool(getattr(sub_data, "is_starred", False)),
+                        is_difficult=bool(getattr(sub_data, "is_difficult", False)),
                         review_count=sub_data.review_count,
                         retention_score=sub_data.retention_score,
                         last_reviewed_at=sub_data.last_reviewed_at,
@@ -252,6 +258,8 @@ class BackupService:
                         subtext.cadence = sub_data.cadence
                     if hasattr(sub_data, "is_starred"):
                         subtext.is_starred = bool(sub_data.is_starred)
+                    if hasattr(sub_data, "is_difficult"):
+                        subtext.is_difficult = bool(sub_data.is_difficult)
                     subtext.review_count = sub_data.review_count
                     subtext.retention_score = sub_data.retention_score
                     subtext.last_reviewed_at = sub_data.last_reviewed_at
