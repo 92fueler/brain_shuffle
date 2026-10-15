@@ -32,13 +32,16 @@ def init_db() -> None:
     SQLModel.metadata.create_all(engine)
     if settings.DATABASE_URL.startswith("sqlite"):
         with Session(engine) as session:
-            try:
-                session.connection().execute(
-                    text("ALTER TABLE problems ADD COLUMN cadence VARCHAR DEFAULT 'weekly'")
-                )
-                session.commit()
-            except Exception:
-                pass
+            for ddl in (
+                "ALTER TABLE problems ADD COLUMN cadence VARCHAR DEFAULT 'weekly'",
+                "ALTER TABLE problems ADD COLUMN is_starred BOOLEAN DEFAULT 0",
+                "ALTER TABLE subtexts ADD COLUMN is_starred BOOLEAN DEFAULT 0",
+            ):
+                try:
+                    session.connection().execute(text(ddl))
+                    session.commit()
+                except Exception:
+                    pass
 
 
 def get_session() -> Generator[Session, None, None]:

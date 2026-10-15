@@ -12,6 +12,7 @@ class SubtextBase(BaseModel):
     subtext: str
     tags: List[str] = []
     cadence: str = "weekly"
+    is_starred: bool = False
 
     @field_validator("tags", mode="before")
     @classmethod
@@ -30,6 +31,7 @@ class SubtextUpdate(BaseModel):
     subtext: Optional[str] = None
     tags: Optional[List[str]] = None
     cadence: Optional[str] = None
+    is_starred: Optional[bool] = None
 
     @field_validator("tags", mode="before")
     @classmethod
@@ -46,6 +48,7 @@ class SubtextRead(SubtextBase):
     review_count: int
     retention_score: float
     cadence: str = "weekly"
+    is_starred: bool = False
     last_reviewed_at: Optional[datetime] = None
     next_review_due: Optional[datetime] = None
     created_at: datetime

@@ -35,6 +35,7 @@ import {
   AlertCircle,
   Maximize2,
   Minimize2,
+  Star,
 } from "lucide-react";
 import { ProblemFlashcard } from "./ProblemFlashcard";
 import { SubtextFlashcard } from "./SubtextFlashcard";
@@ -96,6 +97,7 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
 }) => {
   const [search, setSearch] = useState("");
   const [selectedCompanyFilter, setSelectedCompanyFilter] = useState<string | null>(null);
+  const [showStarredOnly, setShowStarredOnly] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [isAddModalMaximized, setIsAddModalMaximized] = useState(false);
   const [showCatModal, setShowCatModal] = useState(false);
@@ -551,6 +553,48 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
     }
   };
 
+  const [optimisticStars, setOptimisticStars] = useState<Record<string, boolean>>({});
+
+  const isProblemStarred = (problem: Problem) =>
+    problem.id in optimisticStars ? optimisticStars[problem.id] : Boolean(problem.is_starred);
+
+  const isSubtextStarred = (subtext: Subtext) =>
+    subtext.id in optimisticStars ? optimisticStars[subtext.id] : Boolean(subtext.is_starred);
+
+  const handleToggleStar = async (problem: Problem, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const nextVal = !isProblemStarred(problem);
+    setOptimisticStars((prev) => ({ ...prev, [problem.id]: nextVal }));
+    try {
+      await updateProblem(problem.id, { is_starred: nextVal });
+      await onRefresh();
+    } catch (err) {
+      console.error("Failed to toggle important marker", err);
+      setOptimisticStars((prev) => {
+        const copy = { ...prev };
+        delete copy[problem.id];
+        return copy;
+      });
+    }
+  };
+
+  const handleToggleSubtextStar = async (subtext: Subtext, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const nextVal = !isSubtextStarred(subtext);
+    setOptimisticStars((prev) => ({ ...prev, [subtext.id]: nextVal }));
+    try {
+      await updateSubtext(subtext.id, { is_starred: nextVal });
+      await onRefresh();
+    } catch (err) {
+      console.error("Failed to toggle subtext important marker", err);
+      setOptimisticStars((prev) => {
+        const copy = { ...prev };
+        delete copy[subtext.id];
+        return copy;
+      });
+    }
+  };
+
   const handleDelete = async (problemId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!confirm("Are you sure you want to delete this problem?")) return;
@@ -579,45 +623,53 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
     return !cat || !isSubtextCategory(cat.slug);
   }).length;
 
-  const filteredProblems = isSubtextSelected
+  const baseCategoryProblems = isSubtextSelected
     ? []
-    : problems
-        .filter((p) => {
-          const matchesCategory = selectedCategory
-            ? p.category_id === selectedCategory
-            : (() => {
-                const cat = categories.find((c) => c.id === p.category_id);
-                return !cat || !isSubtextCategory(cat.slug);
-              })();
-          const matchesCompany =
-            !selectedCompanyFilter ||
-            (p.companies && p.companies.some((c) => c.toLowerCase() === selectedCompanyFilter.toLowerCase()));
-          const s = search.toLowerCase();
-          const matchesSearch =
-            !search ||
-            p.title.toLowerCase().includes(s) ||
-            p.prompt.toLowerCase().includes(s) ||
-            (p.tags && p.tags.some((tag) => tag.toLowerCase().includes(s))) ||
-            (p.companies && p.companies.some((c) => c.toLowerCase().includes(s)));
-          return matchesCategory && matchesCompany && matchesSearch;
-        })
-        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    : problems.filter((p) => {
+        const matchesCategory = selectedCategory
+          ? p.category_id === selectedCategory
+          : (() => {
+              const cat = categories.find((c) => c.id === p.category_id);
+              return !cat || !isSubtextCategory(cat.slug);
+            })();
+        const matchesCompany =
+          !selectedCompanyFilter ||
+          (p.companies && p.companies.some((c) => c.toLowerCase() === selectedCompanyFilter.toLowerCase()));
+        const s = search.toLowerCase();
+        const matchesSearch =
+          !search ||
+          p.title.toLowerCase().includes(s) ||
+          p.prompt.toLowerCase().includes(s) ||
+          (p.tags && p.tags.some((tag) => tag.toLowerCase().includes(s))) ||
+          (p.companies && p.companies.some((c) => c.toLowerCase().includes(s)));
+        return matchesCategory && matchesCompany && matchesSearch;
+      });
 
-  const filteredSubtexts = !isSubtextSelected
+  const filteredProblems = baseCategoryProblems
+    .filter((p) => !showStarredOnly || isProblemStarred(p))
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+  const baseCategorySubtexts = !isSubtextSelected
     ? []
-    : subtexts
-        .filter((s) => {
-          const matchesCategory = s.category_id === selectedCategory;
-          const q = search.toLowerCase();
-          const matchesSearch =
-            !search ||
-            s.title.toLowerCase().includes(q) ||
-            s.original_text.toLowerCase().includes(q) ||
-            s.subtext.toLowerCase().includes(q) ||
-            (s.tags && s.tags.some((tag) => tag.toLowerCase().includes(q)));
-          return matchesCategory && matchesSearch;
-        })
-        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    : subtexts.filter((s) => {
+        const matchesCategory = s.category_id === selectedCategory;
+        const q = search.toLowerCase();
+        const matchesSearch =
+          !search ||
+          s.title.toLowerCase().includes(q) ||
+          s.original_text.toLowerCase().includes(q) ||
+          s.subtext.toLowerCase().includes(q) ||
+          (s.tags && s.tags.some((tag) => tag.toLowerCase().includes(q)));
+        return matchesCategory && matchesSearch;
+      });
+
+  const filteredSubtexts = baseCategorySubtexts
+    .filter((s) => !showStarredOnly || isSubtextStarred(s))
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+  const starredCount = isSubtextSelected
+    ? baseCategorySubtexts.filter((s) => isSubtextStarred(s)).length
+    : baseCategoryProblems.filter((p) => isProblemStarred(p)).length;
 
   const isAllVisibleSelected =
     filteredProblems.length > 0 && filteredProblems.every((p) => selectedProblemIds.has(p.id));
@@ -860,21 +912,32 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
         </div>
       )}
 
-      {/* List Header with Select All and Count */}
+      {/* List Header with Select All, Important Filter, and Count */}
       <div className="problem-list-controls">
-        {!isSubtextSelected ? (
+        <div className="problem-list-controls-left">
+          {!isSubtextSelected ? (
+            <button
+              type="button"
+              className="select-all-btn"
+              onClick={handleToggleSelectAll}
+              title={isAllVisibleSelected ? "Deselect all visible problems" : "Select all visible problems"}
+            >
+              {isAllVisibleSelected ? <CheckSquare size={13.5} /> : <Square size={13.5} />}
+              <span>{isAllVisibleSelected ? "Deselect All Visible" : "Select All Visible"}</span>
+            </button>
+          ) : (
+            <span className="subtext-view-label">✨ Subtext & Idiom Track</span>
+          )}
           <button
             type="button"
-            className="select-all-btn"
-            onClick={handleToggleSelectAll}
-            title={isAllVisibleSelected ? "Deselect all visible problems" : "Select all visible problems"}
+            className={`starred-filter-toggle-btn ${showStarredOnly ? "active" : ""}`}
+            onClick={() => setShowStarredOnly((prev) => !prev)}
+            title={showStarredOnly ? "Show all entries" : "Show only entries marked as important"}
           >
-            {isAllVisibleSelected ? <CheckSquare size={13.5} /> : <Square size={13.5} />}
-            <span>{isAllVisibleSelected ? "Deselect All Visible" : "Select All Visible"}</span>
+            <Star size={12.5} fill={showStarredOnly ? "currentColor" : "none"} />
+            <span>Important{starredCount > 0 ? ` (${starredCount})` : ""}</span>
           </button>
-        ) : (
-          <span className="subtext-view-label">✨ Subtext & Idiom Track</span>
-        )}
+        </div>
         <span className="problem-list-count">
           {isSubtextSelected
             ? `Showing ${filteredSubtexts.length} ${filteredSubtexts.length === 1 ? "entry" : "entries"}`
@@ -893,6 +956,7 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
             {filteredProblems.map((problem) => {
             const isExpanded = expandedId === problem.id;
             const isSelected = selectedProblemIds.has(problem.id);
+            const isStarred = isProblemStarred(problem);
             const catName = getCategoryName(problem.category_id);
             const catSlug = getCategorySlug(problem.category_id);
             const catTheme = getCategoryTheme(catSlug || catName);
@@ -901,10 +965,10 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
             return (
               <div
                 key={problem.id}
-                className={`problem-item ${isExpanded ? "expanded" : ""} ${isSelected ? "problem-row-selected" : ""}`}
+                className={`problem-item ${isExpanded ? "expanded" : ""} ${isSelected ? "problem-row-selected" : ""} ${isStarred ? "problem-row-starred" : ""}`}
                 onClick={() => setExpandedId(isExpanded ? null : problem.id)}
               >
-                {/* Collapsed Row: Checkbox, Category Tag, Problem Title, Actions */}
+                {/* Collapsed Row: Checkbox, Category Tag, Important Star Marker, Problem Title, Actions */}
                 <div className="problem-row-header">
                   <div className="problem-title-wrapper">
                     <button
@@ -921,6 +985,14 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
                     >
                       {formattedCatName}
                     </span>
+                    <button
+                      type="button"
+                      className={`problem-star-btn ${isStarred ? "starred" : ""}`}
+                      onClick={(e) => handleToggleStar(problem, e)}
+                      title={isStarred ? "Unmark as important" : "Mark as important"}
+                    >
+                      <Star size={14} fill={isStarred ? "currentColor" : "none"} />
+                    </button>
                     <h3 className="problem-title-text">{problem.title}</h3>
                   </div>
                   <div className="problem-row-actions">
@@ -978,6 +1050,7 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
 
           {filteredSubtexts.map((subtext) => {
             const isExpanded = expandedSubtextId === subtext.id;
+            const isStarred = isSubtextStarred(subtext);
             const catName = getCategoryName(subtext.category_id);
             const catSlug = getCategorySlug(subtext.category_id);
             const catTheme = getCategoryTheme(catSlug || catName);
@@ -986,7 +1059,7 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
             return (
               <div
                 key={subtext.id}
-                className={`problem-item ${isExpanded ? "expanded" : ""}`}
+                className={`problem-item ${isExpanded ? "expanded" : ""} ${isStarred ? "problem-row-starred" : ""}`}
                 style={{ borderLeft: "3px solid #818cf8" }}
                 onClick={() => setExpandedSubtextId(isExpanded ? null : subtext.id)}
               >
@@ -998,6 +1071,14 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
                     >
                       {formattedCatName}
                     </span>
+                    <button
+                      type="button"
+                      className={`problem-star-btn ${isStarred ? "starred" : ""}`}
+                      onClick={(e) => handleToggleSubtextStar(subtext, e)}
+                      title={isStarred ? "Unmark as important" : "Mark as important"}
+                    >
+                      <Star size={14} fill={isStarred ? "currentColor" : "none"} />
+                    </button>
                     <span className="subtext-badge-pill" style={{ marginRight: "6px" }}>
                       ✨ Subtext
                     </span>

@@ -52,6 +52,7 @@ class ProblemBase(BaseModel):
     tags: List[str] = []
     companies: List[str] = []
     cadence: str = "weekly"
+    is_starred: bool = False
 
     @field_validator("companies", mode="before")
     @classmethod
@@ -76,6 +77,7 @@ class ProblemUpdate(BaseModel):
     tags: Optional[List[str]] = None
     companies: Optional[List[str]] = None
     cadence: Optional[str] = None
+    is_starred: Optional[bool] = None
 
     @field_validator("companies", mode="before")
     @classmethod
@@ -99,6 +101,7 @@ class ProblemRead(ProblemBase):
     review_count: int
     retention_score: float
     cadence: str = "weekly"
+    is_starred: bool = False
     last_reviewed_at: Optional[datetime] = None
     next_review_due: Optional[datetime] = None
     created_at: datetime
