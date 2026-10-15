@@ -118,15 +118,16 @@ export function normalizeMarkdown(source: string): string {
   }
 
   // 3. Ensure blank line before list starts if preceded by non-blank non-list text,
-  //    and collapse blank lines between consecutive list items.
+  //    and preserve deliberate empty lines between distinct bullet point sets.
   const result: string[] = [];
 
-  const isListOrContinuation = (linesArr: string[], idx: number): boolean => {
+  const isListOrListBreak = (linesArr: string[], idx: number): boolean => {
     let curr = idx;
     while (curr >= 0) {
       const l = linesArr[curr];
       if (l.trim() === "") return false;
       if (listMarkerRegex.test(l)) return true;
+      if (l.includes("list-break")) return true;
       if (/^[ \t]{2,}/.test(l)) {
         curr--;
         continue;
@@ -157,10 +158,17 @@ export function normalizeMarkdown(source: string): string {
       let nextIdx = i + 1;
       while (nextIdx < processedLines.length && processedLines[nextIdx].trim() === "") nextIdx++;
 
-      const isPrevList = prevIdx >= 0 && isListOrContinuation(result, prevIdx);
+      const isPrevList = prevIdx >= 0 && isListOrListBreak(result, prevIdx);
       const isNextList = nextIdx < processedLines.length && listMarkerRegex.test(processedLines[nextIdx]);
 
       if (isPrevList && isNextList) {
+        // Deliberate empty line between two sets of list items:
+        // In CommonMark, a blank line between two list items merges them into a single list.
+        // Inserting a list-break spacer element creates two distinct lists and preserves the empty line.
+        if (result.length > 0 && result[result.length - 1].trim() !== "" && !result[result.length - 1].includes("list-break")) {
+          result.push("");
+        }
+        result.push('<div class="list-break"></div>');
         continue;
       }
     }

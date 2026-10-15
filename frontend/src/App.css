@@ -4035,6 +4035,18 @@ html {
   margin-top: 2px !important;
 }
 
+/* Spacer separating distinct bullet point sets when separated by a deliberate empty line */
+.rich-markdown-viewer .list-break,
+.rich-markdown-viewer .wmde-markdown .list-break {
+  display: block !important;
+  height: 10px !important;
+  line-height: 10px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: none !important;
+}
+
 /* Ensure paragraph inside li does not create block wrapping or vertical margins */
 .rich-markdown-viewer .wmde-markdown li > p,
 .rich-markdown-viewer .wmde-markdown li p,
