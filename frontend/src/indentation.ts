@@ -50,19 +50,76 @@ export function parseNotesColumns(val: string): ParsedNotesColumns {
  * 1. Cleans multiple spaces or tabs after list markers (- , * , + , 1. ) to a single space.
  *    Without this, CommonMark parses "-    text" as an indented code block inside <li>!
  * 2. Normalizes unicode bullet points (•) at line starts to standard Markdown lists (- ).
- * 3. Preserves leading indentation before the bullet marker so sub-lists (nested bullets) work cleanly.
- * 4. Collapses blank lines between consecutive list items so CommonMark treats them as tight lists
+ * 3. Normalizes base indentation of list blocks: in CommonMark, a list starting with >= 4 spaces
+ *    cannot interrupt a paragraph (becoming a single long paragraph line) or becomes a code block.
+ *    Stripping shared base indentation preserves nested sub-bullets while making top-level items valid.
+ * 4. Ensures a blank line before list blocks preceded by non-list text (e.g. "Algorithm:") so lists
+ *    are never swallowed as lazy paragraph continuation lines.
+ * 5. Collapses blank lines between consecutive list items so CommonMark treats them as tight lists
  *    rather than loose lists with bloated paragraphs.
  */
 export function normalizeMarkdown(source: string): string {
   if (!source) return "";
-  const cleanedMarkers = source
+
+  // 1. Normalize unicode bullets to standard dashes
+  let text = source
     .replace(/^([ \t]*)•[ \t]*/gm, "$1- ")
     .replace(/^([ \t]*)([-*+]|\d+\.)([ \t]*\t[ \t]*|[ \t]{2,})/gm, "$1$2 ");
 
-  const lines = cleanedMarkers.split("\n");
+  // 2. Process list blocks: if all items in a list block have a shared base indentation >= 4 spaces,
+  //    strip that base indentation so CommonMark parses them as valid lists.
+  const lines = text.split("\n");
+  const listMarkerRegex = /^([ \t]*)([-*+•]|\d+\.)[ \t]+/;
+
+  const processedLines = [...lines];
+  let inList = false;
+  let listBlockStart = -1;
+  let minIndent = Infinity;
+
+  const flushListBlock = (start: number, end: number, indentToStrip: number) => {
+    if (indentToStrip >= 4 && indentToStrip !== Infinity) {
+      for (let k = start; k < end; k++) {
+        if (processedLines[k].trim() !== "") {
+          processedLines[k] = processedLines[k].slice(indentToStrip);
+        }
+      }
+    }
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const match = line.match(listMarkerRegex);
+    if (match) {
+      if (!inList) {
+        inList = true;
+        listBlockStart = i;
+        minIndent = match[1].length;
+      } else {
+        minIndent = Math.min(minIndent, match[1].length);
+      }
+    } else if (inList) {
+      if (line.trim() === "") {
+        let nextIdx = i + 1;
+        while (nextIdx < lines.length && lines[nextIdx].trim() === "") nextIdx++;
+        if (nextIdx < lines.length && listMarkerRegex.test(lines[nextIdx])) {
+          continue;
+        }
+      } else if (/^[ \t]{2,}/.test(line)) {
+        continue;
+      }
+      flushListBlock(listBlockStart, i, minIndent);
+      inList = false;
+      listBlockStart = -1;
+      minIndent = Infinity;
+    }
+  }
+  if (inList) {
+    flushListBlock(listBlockStart, lines.length, minIndent);
+  }
+
+  // 3. Ensure blank line before list starts if preceded by non-blank non-list text,
+  //    and collapse blank lines between consecutive list items.
   const result: string[] = [];
-  const listMarkerRegex = /^[ \t]*(?:[-*+•]|\d+\.)[ \t]+/;
 
   const isListOrContinuation = (linesArr: string[], idx: number): boolean => {
     let curr = idx;
@@ -79,21 +136,35 @@ export function normalizeMarkdown(source: string): string {
     return false;
   };
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
+  for (let i = 0; i < processedLines.length; i++) {
+    const line = processedLines[i];
+    const isList = listMarkerRegex.test(line);
+
+    if (isList) {
+      // If previous line was non-blank and not a list, insert blank line to start fresh list block
+      if (
+        result.length > 0 &&
+        result[result.length - 1].trim() !== "" &&
+        !listMarkerRegex.test(result[result.length - 1])
+      ) {
+        result.push("");
+      }
+    }
+
     if (line.trim() === "") {
       let prevIdx = result.length - 1;
       while (prevIdx >= 0 && result[prevIdx].trim() === "") prevIdx--;
       let nextIdx = i + 1;
-      while (nextIdx < lines.length && lines[nextIdx].trim() === "") nextIdx++;
+      while (nextIdx < processedLines.length && processedLines[nextIdx].trim() === "") nextIdx++;
 
       const isPrevList = prevIdx >= 0 && isListOrContinuation(result, prevIdx);
-      const isNextList = nextIdx < lines.length && listMarkerRegex.test(lines[nextIdx]);
+      const isNextList = nextIdx < processedLines.length && listMarkerRegex.test(processedLines[nextIdx]);
 
       if (isPrevList && isNextList) {
         continue;
       }
     }
+
     result.push(line);
   }
 
