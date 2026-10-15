@@ -146,19 +146,13 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
   const [isUpdating, setIsUpdating] = useState(false);
 
   // Category Form & Manager State
-  const [newCatSlug, setNewCatSlug] = useState("");
   const [newCatName, setNewCatName] = useState("");
-  const [newCatDesc, setNewCatDesc] = useState("");
-  const [isSlugManuallyEdited, setIsSlugManuallyEdited] = useState(false);
   const [catError, setCatError] = useState<string | null>(null);
-  const [catSuccess, setCatSuccess] = useState<string | null>(null);
   const [isCatSubmitting, setIsCatSubmitting] = useState(false);
 
   // Category Edit State
   const [editingCatId, setEditingCatId] = useState<string | null>(null);
   const [editCatName, setEditCatName] = useState("");
-  const [editCatSlug, setEditCatSlug] = useState("");
-  const [editCatDesc, setEditCatDesc] = useState("");
   const [isCatUpdating, setIsCatUpdating] = useState(false);
   const [deletingCatId, setDeletingCatId] = useState<string | null>(null);
 
@@ -427,48 +421,28 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
     }
   };
 
-  const handleNewCatNameChange = (val: string) => {
-    setNewCatName(val);
-    if (!isSlugManuallyEdited) {
-      const autoSlug = val
-        .toLowerCase()
-        .trim()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-|-$/g, "");
-      setNewCatSlug(autoSlug);
-    }
-  };
-
-  const handleNewCatSlugChange = (val: string) => {
-    setNewCatSlug(val);
-    setIsSlugManuallyEdited(val.length > 0);
-  };
-
   const handleCloseCatModal = () => {
     setShowCatModal(false);
     setEditingCatId(null);
     setCatError(null);
-    setCatSuccess(null);
   };
 
   const handleCreateCat = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newCatSlug.trim() || !newCatName.trim()) return;
+    const trimmedName = newCatName.trim();
+    if (!trimmedName) return;
+
+    const autoSlug = trimmedName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "");
+    if (!autoSlug) return;
 
     setCatError(null);
-    setCatSuccess(null);
     setIsCatSubmitting(true);
     try {
-      const created = await createCategory(
-        newCatSlug.trim().toLowerCase(),
-        newCatName.trim(),
-        newCatDesc.trim() || undefined
-      );
-      setNewCatSlug("");
+      const created = await createCategory(autoSlug, trimmedName);
       setNewCatName("");
-      setNewCatDesc("");
-      setIsSlugManuallyEdited(false);
-      setCatSuccess(`Category "${created.name}" created successfully.`);
       onRefresh();
       setFormCatId(created.id);
     } catch (err: unknown) {
@@ -483,34 +457,27 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
   const handleStartEditCat = (cat: Category) => {
     setEditingCatId(cat.id);
     setEditCatName(cat.name);
-    setEditCatSlug(cat.slug);
-    setEditCatDesc(cat.description || "");
     setCatError(null);
-    setCatSuccess(null);
   };
 
   const handleCancelEditCat = () => {
     setEditingCatId(null);
     setEditCatName("");
-    setEditCatSlug("");
-    setEditCatDesc("");
   };
 
-  const handleSaveEditCat = async (catId: string) => {
-    if (!editCatName.trim() || !editCatSlug.trim()) {
-      setCatError("Category name and slug are required.");
+  const handleSaveEditCat = async (cat: Category) => {
+    const trimmedName = editCatName.trim();
+    if (!trimmedName) {
+      setCatError("Category name is required.");
       return;
     }
     setCatError(null);
-    setCatSuccess(null);
     setIsCatUpdating(true);
     try {
-      const updated = await updateCategory(catId, {
-        name: editCatName.trim(),
-        slug: editCatSlug.trim().toLowerCase(),
-        description: editCatDesc.trim(),
+      await updateCategory(cat.id, {
+        name: trimmedName,
+        slug: cat.slug,
       });
-      setCatSuccess(`Category "${updated.name}" updated successfully.`);
       setEditingCatId(null);
       onRefresh();
     } catch (err: unknown) {
@@ -522,23 +489,21 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
     }
   };
 
-  const handleDeleteCat = async (cat: Category, problemCount: number) => {
+  const handleDeleteCat = async (cat: Category, entryCount: number) => {
     setCatError(null);
-    setCatSuccess(null);
-    if (problemCount > 0) {
+    if (entryCount > 0) {
       setCatError(
-        `Cannot delete category "${cat.name}" because it contains ${problemCount} problem(s). Please reassign or delete these problems first.`
+        `Cannot delete "${cat.name}" (${entryCount} ${entryCount === 1 ? "entry" : "entries"} inside).`
       );
       return;
     }
-    if (!confirm(`Are you sure you want to delete category "${cat.name}"? This action cannot be undone.`)) {
+    if (!confirm(`Delete category "${cat.name}"?`)) {
       return;
     }
 
     setDeletingCatId(cat.id);
     try {
       await deleteCategory(cat.id);
-      setCatSuccess(`Category "${cat.name}" deleted.`);
       if (selectedCategory === cat.id) {
         onSelectCategory(null);
       }
@@ -836,7 +801,6 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
             onClick={() => {
               setShowCatModal(true);
               setCatError(null);
-              setCatSuccess(null);
               setEditingCatId(null);
             }}
           >
@@ -1799,13 +1763,13 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
           onClick={handleCloseCatModal}
         >
           <div
-            className="modal-content modal-content-wide category-manager-modal"
+            className="modal-content category-manager-modal"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="modal-header">
               <div className="cat-modal-header-title">
-                <FolderCog size={22} className="cat-modal-header-icon" />
-                <h2>Category Manager</h2>
+                <FolderCog size={19} className="cat-modal-header-icon" />
+                <h2>Categories</h2>
               </div>
               <button
                 type="button"
@@ -1819,190 +1783,123 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
 
             {catError && (
               <div className="cat-alert cat-alert-error">
-                <AlertCircle size={16} />
+                <AlertCircle size={15} />
                 <span>{catError}</span>
               </div>
             )}
-            {catSuccess && (
-              <div className="cat-alert cat-alert-success">
-                <Check size={16} />
-                <span>{catSuccess}</span>
-              </div>
-            )}
 
-            <div className="cat-manager-grid">
-              {/* Section 1: Add New Category */}
-              <div className="cat-manager-section cat-add-section">
-                <h3>Add New Category</h3>
-                <form onSubmit={handleCreateCat}>
-                  <div className="form-group">
-                    <label>Category Name *</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Distributed Systems"
-                      value={newCatName}
-                      onChange={(e) => handleNewCatNameChange(e.target.value)}
-                      required
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>
-                      Slug (URL key) *
-                      <span className="field-hint">Auto or custom key</span>
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="e.g. distributed-systems"
-                      value={newCatSlug}
-                      onChange={(e) => handleNewCatSlugChange(e.target.value)}
-                      required
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Description (Optional)</label>
-                    <textarea
-                      placeholder="e.g. Consensus, Raft, Paxos, partition tolerance, replication"
-                      value={newCatDesc}
-                      onChange={(e) => setNewCatDesc(e.target.value)}
-                      rows={2}
-                    />
-                  </div>
-                  <button
-                    type="submit"
-                    className="primary-action-btn cat-submit-btn"
-                    disabled={isCatSubmitting || !newCatName.trim() || !newCatSlug.trim()}
-                  >
-                    <Plus size={15} />
-                    {isCatSubmitting ? "Creating..." : "Create Category"}
-                  </button>
-                </form>
-              </div>
-
-              {/* Section 2: Existing Categories List */}
-              <div className="cat-manager-section cat-list-section">
-                <h3>Existing Categories ({categories.length})</h3>
-                <div className="cat-cards-list">
-                  {categories.length === 0 ? (
-                    <div className="cat-empty-notice">No categories found. Create your first category above.</div>
-                  ) : (
-                    categories.map((c) => {
-                      const count = problems.filter((p) => p.category_id === c.id).length;
-                      const isEditing = editingCatId === c.id;
-
-                      if (isEditing) {
-                        return (
-                          <div key={c.id} className="cat-item-card cat-item-editing">
-                            <div className="cat-edit-fields">
-                              <div className="cat-edit-row">
-                                <div className="form-group" style={{ flex: 1 }}>
-                                  <label>Name</label>
-                                  <input
-                                    type="text"
-                                    value={editCatName}
-                                    onChange={(e) => setEditCatName(e.target.value)}
-                                    placeholder="Category Name"
-                                    autoFocus
-                                  />
-                                </div>
-                                <div className="form-group" style={{ flex: 1 }}>
-                                  <label>Slug</label>
-                                  <input
-                                    type="text"
-                                    value={editCatSlug}
-                                    onChange={(e) => setEditCatSlug(e.target.value)}
-                                    placeholder="slug-key"
-                                  />
-                                </div>
-                              </div>
-                              <div className="form-group">
-                                <label>Description</label>
-                                <input
-                                  type="text"
-                                  value={editCatDesc}
-                                  onChange={(e) => setEditCatDesc(e.target.value)}
-                                  placeholder="Brief description..."
-                                />
-                              </div>
-                            </div>
-                            <div className="cat-edit-actions">
-                              <button
-                                type="button"
-                                className="cat-btn-cancel"
-                                onClick={handleCancelEditCat}
-                                disabled={isCatUpdating}
-                              >
-                                <X size={14} /> Cancel
-                              </button>
-                              <button
-                                type="button"
-                                className="cat-btn-save"
-                                onClick={() => handleSaveEditCat(c.id)}
-                                disabled={isCatUpdating || !editCatName.trim() || !editCatSlug.trim()}
-                              >
-                                <Check size={14} /> {isCatUpdating ? "Saving..." : "Save"}
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      }
-
-                      return (
-                        <div key={c.id} className="cat-item-card">
-                          <div className="cat-item-info">
-                            <div className="cat-item-header">
-                              <span className="cat-item-name">{c.name}</span>
-                              <code className="cat-item-slug">{c.slug}</code>
-                              <span
-                                className={`cat-problem-count-badge ${count > 0 ? "has-problems" : "empty"}`}
-                              >
-                                {count} {count === 1 ? "problem" : "problems"}
-                              </span>
-                            </div>
-                            {c.description ? (
-                              <p className="cat-item-desc">{c.description}</p>
-                            ) : (
-                              <p className="cat-item-desc empty">No description provided</p>
-                            )}
-                          </div>
-                          <div className="cat-item-actions">
-                            <button
-                              type="button"
-                              className="cat-action-icon-btn edit"
-                              onClick={() => handleStartEditCat(c)}
-                              title="Edit Category"
-                            >
-                              <Pencil size={15} />
-                            </button>
-                            <button
-                              type="button"
-                              className={`cat-action-icon-btn delete ${count > 0 ? "blocked" : ""}`}
-                              onClick={() => handleDeleteCat(c, count)}
-                              disabled={deletingCatId === c.id}
-                              title={
-                                count > 0
-                                  ? `Cannot delete: category has ${count} problem(s)`
-                                  : "Delete category"
-                              }
-                            >
-                              <Trash2 size={15} />
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="modal-actions" style={{ marginTop: 24 }}>
+            <form onSubmit={handleCreateCat} className="cat-quick-add-form">
+              <input
+                type="text"
+                className="cat-quick-add-input"
+                placeholder="New category name..."
+                value={newCatName}
+                onChange={(e) => setNewCatName(e.target.value)}
+              />
               <button
-                type="button"
-                className="secondary-action-btn"
-                onClick={handleCloseCatModal}
+                type="submit"
+                className="primary-action-btn cat-quick-add-btn"
+                disabled={isCatSubmitting || !newCatName.trim()}
               >
-                Done
+                <Plus size={15} />
+                {isCatSubmitting ? "Adding..." : "Add"}
               </button>
+            </form>
+
+            <div className="cat-compact-list">
+              {categories.length === 0 ? (
+                <div className="cat-empty-notice">No categories yet.</div>
+              ) : (
+                categories.map((c) => {
+                  const isSub = isSubtextCategory(c.slug);
+                  const count = isSub
+                    ? subtexts.filter((s) => s.category_id === c.id).length
+                    : problems.filter((p) => p.category_id === c.id).length;
+                  const theme = getCategoryTheme(c.slug || c.name);
+                  const isEditing = editingCatId === c.id;
+
+                  if (isEditing) {
+                    return (
+                      <div key={c.id} className="cat-compact-row editing">
+                        <input
+                          type="text"
+                          className="cat-inline-edit-input"
+                          value={editCatName}
+                          onChange={(e) => setEditCatName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              handleSaveEditCat(c);
+                            } else if (e.key === "Escape") {
+                              handleCancelEditCat();
+                            }
+                          }}
+                          placeholder="Category name"
+                          autoFocus
+                        />
+                        <div className="cat-item-actions">
+                          <button
+                            type="button"
+                            className="cat-action-icon-btn save"
+                            onClick={() => handleSaveEditCat(c)}
+                            disabled={isCatUpdating || !editCatName.trim()}
+                            title="Save"
+                          >
+                            <Check size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            className="cat-action-icon-btn cancel"
+                            onClick={handleCancelEditCat}
+                            disabled={isCatUpdating}
+                            title="Cancel"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div key={c.id} className="cat-compact-row">
+                      <div className="cat-compact-row-left">
+                        <span
+                          className="cat-chip-dot"
+                          style={{ backgroundColor: theme.color }}
+                        />
+                        <span className="cat-item-name">{formatCategoryName(c.name)}</span>
+                        <span className={`cat-count-pill ${count > 0 ? "active" : ""}`}>
+                          {count}
+                        </span>
+                      </div>
+                      <div className="cat-item-actions">
+                        <button
+                          type="button"
+                          className="cat-action-icon-btn edit"
+                          onClick={() => handleStartEditCat(c)}
+                          title="Rename category"
+                        >
+                          <Pencil size={13.5} />
+                        </button>
+                        <button
+                          type="button"
+                          className={`cat-action-icon-btn delete ${count > 0 ? "blocked" : ""}`}
+                          onClick={() => handleDeleteCat(c, count)}
+                          disabled={deletingCatId === c.id}
+                          title={
+                            count > 0
+                              ? `Cannot delete (${count} ${count === 1 ? "entry" : "entries"})`
+                              : "Delete category"
+                          }
+                        >
+                          <Trash2 size={13.5} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
         </div>
