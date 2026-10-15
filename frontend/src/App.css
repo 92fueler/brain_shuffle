@@ -3390,6 +3390,7 @@ html {
   min-height: 36px;
   max-height: 36px;
   box-sizing: border-box;
+  overflow: visible !important;
 }
 
 .workspace-panel-notes .dual-notepad-body,
@@ -3487,12 +3488,13 @@ html {
   flex-direction: column;
   width: 100%;
   border-radius: 8px;
-  overflow: hidden;
   border: 1px solid var(--border-color);
   background: var(--bg-secondary);
 }
 
 .dual-notepad-topbar {
+  position: relative;
+  z-index: 60;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -3504,8 +3506,7 @@ html {
   flex-shrink: 0;
   min-height: 36px;
   box-sizing: border-box;
-  overflow-x: auto;
-  scrollbar-width: none;
+  overflow: visible !important;
 }
 
 .dual-notepad-topbar::-webkit-scrollbar {
@@ -3644,6 +3645,7 @@ html {
   background: #0f172a;
   overflow: hidden;
   position: relative;
+  z-index: 1;
 }
 
 .dual-notepad-single-pane {
@@ -3728,6 +3730,8 @@ html {
 }
 
 .dual-panel-header {
+  position: relative;
+  z-index: 60;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -3735,6 +3739,7 @@ html {
   background: #1e293b;
   border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
+  overflow: visible !important;
 }
 
 .dual-panel-title-area {
@@ -3953,13 +3958,14 @@ html {
 .dual-color-dropdown-menu {
   position: absolute;
   top: calc(100% + 4px);
-  right: 0;
+  left: 0;
+  right: auto;
   z-index: 1050;
   background: #1e293b;
   border: 1px solid var(--border-color);
   border-radius: 8px;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.6);
-  min-width: 175px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.75);
+  min-width: 180px;
   padding: 6px;
   display: flex;
   flex-direction: column;

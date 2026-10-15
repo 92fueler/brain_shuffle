@@ -731,6 +731,7 @@ export const DualNotepad: React.FC<DualNotepadProps> = ({
           className={`${targetCol === "single" ? "dual-action-chip caret" : "dual-pane-mini-btn caret"} ${isMenuOpen ? "active" : ""}`}
           onClick={(e) => {
             e.stopPropagation();
+            setOpenColorMenu(null);
             setOpenLangMenu(isMenuOpen ? null : targetCol);
           }}
           title="Choose code block language"
@@ -796,6 +797,7 @@ export const DualNotepad: React.FC<DualNotepadProps> = ({
             className={`${btnClass} ${isColorMenuOpen ? "active" : ""}`}
             onClick={(e) => {
               e.stopPropagation();
+              setOpenLangMenu(null);
               setOpenColorMenu(isColorMenuOpen ? null : targetCol);
             }}
             title="Text Color Palette"
