@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import CodeMirror, { type Extension } from "@uiw/react-codemirror";
 import { EditorState, Prec } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
@@ -152,6 +152,14 @@ export const CodeScratchpad: React.FC<CodeScratchpadProps> = ({
       return next;
     });
   };
+
+  // Keep global CSS property synchronized with active code scratchpad font size
+  useEffect(() => {
+    document.documentElement.style.setProperty(
+      "--scratchpad-code-font-size",
+      `${fontSize}px`
+    );
+  }, [fontSize]);
 
   // Selected language state persisted in localStorage
   const [language, setLanguage] = useState<SupportedLanguage>(() => {

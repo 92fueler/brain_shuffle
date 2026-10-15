@@ -14,6 +14,7 @@
   --accent-red: #ef4444;
   --font-code: 'Roboto Mono', 'SF Mono', Consolas, Monaco, monospace;
   --font-notes: Arial, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --scratchpad-code-font-size: 11px;
 }
 
 body {
@@ -3964,9 +3965,9 @@ html {
 /* Compact Rich Markdown Viewer Typography */
 .rich-markdown-viewer {
   font-family: var(--font-notes);
-  font-size: 12.5px;
-  line-height: 1.42;
-  color: #e2e8f0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #f1f5f9;
 }
 
 .rich-markdown-viewer,
@@ -3974,9 +3975,9 @@ html {
 .rich-markdown-viewer .wmde-markdown {
   background-color: transparent !important;
   color: inherit !important;
-  font-family: inherit !important;
-  font-size: inherit !important;
-  line-height: inherit !important;
+  font-family: var(--font-notes) !important;
+  font-size: 13px !important;
+  line-height: 1.45 !important;
   white-space: normal !important;
 }
 
@@ -3990,6 +3991,8 @@ html {
 
 .rich-markdown-viewer .wmde-markdown p,
 .rich-markdown-viewer p {
+  font-family: var(--font-notes) !important;
+  font-size: 13px !important;
   margin-top: 0 !important;
   margin-bottom: 6px !important;
   line-height: 1.45 !important;
@@ -4019,6 +4022,8 @@ html {
 
 .rich-markdown-viewer .wmde-markdown li,
 .rich-markdown-viewer li {
+  font-family: var(--font-notes) !important;
+  font-size: 13px !important;
   margin-top: 1px !important;
   margin-bottom: 2px !important;
   line-height: 1.45 !important;
@@ -4074,24 +4079,24 @@ html {
   padding: 7px 10px !important;
   margin: 5px 0 !important;
   font-family: var(--font-code) !important;
-  font-size: 11px !important;
-  line-height: 1.35 !important;
+  font-size: var(--scratchpad-code-font-size, 11px) !important;
+  line-height: 1.42 !important;
   overflow-x: auto;
 }
 
 .rich-markdown-viewer pre code {
   font-family: var(--font-code) !important;
-  font-size: 11px !important;
-  line-height: 1.35 !important;
+  font-size: var(--scratchpad-code-font-size, 11px) !important;
+  line-height: 1.42 !important;
 }
 
 .rich-markdown-viewer code:not(pre code) {
   background: rgba(99, 102, 241, 0.16) !important;
   color: #c7d2fe !important;
-  padding: 1px 4px !important;
+  padding: 1.5px 5px !important;
   border-radius: 4px !important;
   font-family: var(--font-code) !important;
-  font-size: 11px !important;
+  font-size: 12px !important;
   border: 1px solid rgba(99, 102, 241, 0.25);
 }
 
@@ -4102,8 +4107,8 @@ html {
   margin: 5px 0;
   border-radius: 0 5px 5px 0;
   color: #cbd5e1;
-  font-size: 12px;
-  line-height: 1.4;
+  font-size: 13px;
+  line-height: 1.45;
 }
 
 .rich-markdown-viewer hr {
@@ -4137,7 +4142,7 @@ html {
 }
 
 .rich-markdown-viewer h4 {
-  font-size: 12.5px;
+  font-size: 13px;
 }
 
 .entry-modal-body .note-editor-group .dual-notepad-container {
@@ -4153,7 +4158,7 @@ html {
 }
 
 .empty-markdown-text {
-  font-size: 12px;
+  font-size: 13px;
   color: #64748b;
   font-style: italic;
 }
