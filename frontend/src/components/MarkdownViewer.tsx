@@ -1,6 +1,7 @@
 import React from "react";
 import MarkdownPreview from "@uiw/react-markdown-preview";
 import "@uiw/react-markdown-preview/markdown.css";
+import { normalizeMarkdown } from "../indentation";
 
 interface MarkdownViewerProps {
   source: string;
@@ -17,10 +18,12 @@ export const MarkdownViewer: React.FC<MarkdownViewerProps> = ({
     return <span className="empty-markdown-text">No notes recorded.</span>;
   }
 
+  const cleanSource = normalizeMarkdown(source);
+
   return (
     <div className={`rich-markdown-viewer ${className}`} data-color-mode="dark" style={style}>
       <MarkdownPreview
-        source={source}
+        source={cleanSource}
         style={{
           backgroundColor: "transparent",
           color: "inherit",

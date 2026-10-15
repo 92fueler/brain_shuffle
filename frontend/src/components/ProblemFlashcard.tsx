@@ -14,11 +14,30 @@ import {
   Code2,
   Columns,
   Edit3,
+  Square,
 } from "lucide-react";
 import { CodeScratchpad } from "./CodeScratchpad";
 import { DualNotepad } from "./DualNotepad";
 import { MarkdownViewer } from "./MarkdownViewer";
 import { Group, Panel, Separator } from "react-resizable-panels";
+
+const SPLIT_DELIMITER_REGEX = /\n\s*---\s*\n/;
+
+const parseNotesColumns = (notes: string) => {
+  if (SPLIT_DELIMITER_REGEX.test(notes)) {
+    const parts = notes.split(SPLIT_DELIMITER_REGEX);
+    return {
+      isSplit: true,
+      col1: parts[0] || "",
+      col2: parts.slice(1).join("\n\n---\n\n") || "",
+    };
+  }
+  return {
+    isSplit: false,
+    col1: notes || "",
+    col2: "",
+  };
+};
 
 interface ProblemFlashcardProps {
   problem: Problem;
@@ -65,9 +84,32 @@ export const ProblemFlashcard: React.FC<ProblemFlashcardProps> = ({
   const [showHints, setShowHints] = useState<boolean>(false);
   const [showSolution, setShowSolution] = useState<boolean>(initialShowSolution);
   type WorkspaceLayout = "code" | "split" | "notes";
-  const [workspaceLayout, setWorkspaceLayout] = useState<WorkspaceLayout>(() =>
-    isNote ? "notes" : "code"
-  );
+  const getInitialWorkspaceLayout = (): WorkspaceLayout => {
+    try {
+      const saved = sessionStorage.getItem("preferred_workspace_layout") as WorkspaceLayout | null;
+      if (saved === "code" || saved === "split" || saved === "notes") return saved;
+    } catch {
+      // Ignore storage access errors
+    }
+    return isNote ? "notes" : "code";
+  };
+  const [workspaceLayout, setWorkspaceLayout] = useState<WorkspaceLayout>(getInitialWorkspaceLayout);
+
+  const handleWorkspaceLayoutChange = (layout: WorkspaceLayout) => {
+    setWorkspaceLayout(layout);
+    try {
+      sessionStorage.setItem("preferred_workspace_layout", layout);
+    } catch {
+      // Ignore storage access errors
+    }
+  };
+
+  const parsedNotes = parseNotesColumns(problem.notes || "");
+  const [notesViewOverride, setNotesViewOverride] = useState<"1-col" | "2-col" | null>(null);
+  const isSplitViewActive = notesViewOverride !== null
+    ? notesViewOverride === "2-col"
+    : parsedNotes.isSplit;
+
   const [scratchpad, setScratchpad] = useState<string>(() => {
     try {
       return sessionStorage.getItem(`session_scratch_${problem.id}`) || "";
@@ -89,7 +131,8 @@ export const ProblemFlashcard: React.FC<ProblemFlashcardProps> = ({
   const [trackedProblemId, setTrackedProblemId] = useState<string>(problem.id);
   if (trackedProblemId !== problem.id) {
     setTrackedProblemId(problem.id);
-    setWorkspaceLayout(isNote ? "notes" : "code");
+    setWorkspaceLayout(getInitialWorkspaceLayout());
+    setNotesViewOverride(null);
     try {
       setScratchpad(sessionStorage.getItem(`session_scratch_${problem.id}`) || "");
     } catch {
@@ -247,7 +290,7 @@ export const ProblemFlashcard: React.FC<ProblemFlashcardProps> = ({
           <button
             type="button"
             className={`scratchpad-mode-btn ${workspaceLayout === "code" ? "active" : ""}`}
-            onClick={() => setWorkspaceLayout("code")}
+            onClick={() => handleWorkspaceLayoutChange("code")}
             title="Code Editor Only"
           >
             <Code2 size={13} />
@@ -256,7 +299,7 @@ export const ProblemFlashcard: React.FC<ProblemFlashcardProps> = ({
           <button
             type="button"
             className={`scratchpad-mode-btn ${workspaceLayout === "split" ? "active" : ""}`}
-            onClick={() => setWorkspaceLayout("split")}
+            onClick={() => handleWorkspaceLayoutChange("split")}
             title="Split Workspace: Code on Left, Rich Notes on Right"
           >
             <Columns size={13} />
@@ -265,7 +308,7 @@ export const ProblemFlashcard: React.FC<ProblemFlashcardProps> = ({
           <button
             type="button"
             className={`scratchpad-mode-btn ${workspaceLayout === "notes" ? "active" : ""}`}
-            onClick={() => setWorkspaceLayout("notes")}
+            onClick={() => handleWorkspaceLayoutChange("notes")}
             title="Rich Notes Only (Bullet points, embedded code, markdown)"
           >
             <Edit3 size={13} />
@@ -389,10 +432,56 @@ export const ProblemFlashcard: React.FC<ProblemFlashcardProps> = ({
       {/* Reference Notes & Solution Section */}
       {showSolution && (
         <div className="notes-section">
-          <div className="section-label">
-            {isNote ? "Note & Key Takeaways:" : "Notes & Reference Solution:"}
+          <div className="section-label-row">
+            <div className="section-label">
+              {isNote ? "Note & Key Takeaways:" : "Notes & Reference Solution:"}
+            </div>
+            {parsedNotes.isSplit && (
+              <div className="notes-view-mode-toggles">
+                <button
+                  type="button"
+                  className={`notes-view-mode-btn ${!isSplitViewActive ? "active" : ""}`}
+                  onClick={() => setNotesViewOverride("1-col")}
+                  title="View notes in single combined column"
+                >
+                  <Square size={11} />
+                  <span>1-Col</span>
+                </button>
+                <button
+                  type="button"
+                  className={`notes-view-mode-btn ${isSplitViewActive ? "active" : ""}`}
+                  onClick={() => setNotesViewOverride("2-col")}
+                  title="View notes in side-by-side 2-column split"
+                >
+                  <Columns size={11} />
+                  <span>2-Col</span>
+                </button>
+              </div>
+            )}
           </div>
-          <MarkdownViewer source={problem.notes} className="notes-content" />
+
+          {parsedNotes.isSplit && isSplitViewActive ? (
+            <div className="flashcard-split-notes-layout">
+              <div className="flashcard-notes-pane flashcard-notes-pane-left">
+                <div className="flashcard-pane-header">
+                  <span className="flashcard-pane-label">Pad 1</span>
+                </div>
+                <div className="flashcard-pane-body">
+                  <MarkdownViewer source={parsedNotes.col1} className="notes-content" />
+                </div>
+              </div>
+              <div className="flashcard-notes-pane flashcard-notes-pane-right">
+                <div className="flashcard-pane-header">
+                  <span className="flashcard-pane-label">Pad 2</span>
+                </div>
+                <div className="flashcard-pane-body">
+                  <MarkdownViewer source={parsedNotes.col2} className="notes-content" />
+                </div>
+              </div>
+            </div>
+          ) : (
+            <MarkdownViewer source={problem.notes} className="notes-content" />
+          )}
 
           {/* Subtopic Tags */}
           {problem.tags && problem.tags.length > 0 && (

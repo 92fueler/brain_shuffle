@@ -5,6 +5,20 @@ import { indentMore } from "@codemirror/commands";
 export const TAB_SIZE = 4;
 
 /**
+ * Normalizes markdown text to ensure clean, Google Docs-style list rendering:
+ * 1. Cleans multiple spaces or tabs after list markers (- , * , 1. ) to a single space.
+ *    Without this, CommonMark parses "-    text" as an indented code block inside <li>!
+ * 2. Normalizes unicode bullet points (•) at line starts to standard Markdown lists (- ).
+ * 3. Preserves leading indentation before the bullet marker so sub-lists (nested bullets) work cleanly.
+ */
+export function normalizeMarkdown(source: string): string {
+  if (!source) return "";
+  return source
+    .replace(/^([ \t]*)•[ \t]*/gm, "$1- ")
+    .replace(/^([ \t]*)([-*]|\d+\.)([ \t]*\t[ \t]*|[ \t]{2,})/gm, "$1$2 ");
+}
+
+/**
  * IDE-style Tab command for CodeMirror:
  * - If any text is selected: indents all selected lines by TAB_SIZE spaces.
  * - Otherwise: inserts spaces up to the next 4-space tab stop at the cursor position and advances cursor.
@@ -163,7 +177,22 @@ export function handleTextareaTabKey(
     return true;
   }
 
-  // Collapsed cursor: insert spaces up to the next 4-space tab stop
+  // Collapsed cursor:
+  // If cursor is on a list item line and positioned at or before the start of text,
+  // indent the whole list line to create a nested sub-bullet (Google Docs style)
+  // rather than inserting spaces between the bullet marker and text.
+  const lineText = currentVal.slice(firstLineStart, lastLineEnd);
+  const bulletMatch = lineText.match(/^([ \t]*)([-*•]|\d+\.)[ \t]*/);
+  if (bulletMatch && (selectionStart - firstLineStart) <= bulletMatch[0].length) {
+    const indent = " ".repeat(TAB_SIZE);
+    const nextVal =
+      currentVal.slice(0, firstLineStart) + indent + currentVal.slice(firstLineStart);
+    const newPos = selectionStart + TAB_SIZE;
+    update(nextVal, newPos, newPos);
+    return true;
+  }
+
+  // General collapsed cursor: insert spaces up to the next 4-space tab stop
   const col = selectionStart - firstLineStart;
   const count = TAB_SIZE - (col % TAB_SIZE);
   const spaces = " ".repeat(count);

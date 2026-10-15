@@ -3985,14 +3985,53 @@ html {
 
 .rich-markdown-viewer ul,
 .rich-markdown-viewer ol {
-  padding-left: 18px;
+  padding-left: 20px;
+  margin-top: 3px;
+  margin-bottom: 6px;
+}
+
+.rich-markdown-viewer ul ul,
+.rich-markdown-viewer ul ol,
+.rich-markdown-viewer ol ul,
+.rich-markdown-viewer ol ol {
+  padding-left: 20px;
   margin-top: 2px;
-  margin-bottom: 5px;
+  margin-bottom: 2px;
 }
 
 .rich-markdown-viewer li {
-  margin-bottom: 2px;
-  line-height: 1.4;
+  margin-bottom: 3px;
+  line-height: 1.45;
+  color: #f1f5f9;
+}
+
+/* Ensure paragraph inside li does not create block wrapping or vertical margins */
+.rich-markdown-viewer li > p {
+  margin: 0;
+  display: inline;
+}
+
+/* If an unfenced pre occurs inside li, prevent it from rendering as a code block box */
+.rich-markdown-viewer li > pre:not([class*="language-"]) {
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  font-family: inherit !important;
+  font-size: inherit !important;
+  color: inherit !important;
+  display: inline;
+  white-space: normal;
+  border-radius: 0 !important;
+}
+
+.rich-markdown-viewer li > pre:not([class*="language-"]) code {
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  font-family: inherit !important;
+  font-size: inherit !important;
+  color: inherit !important;
 }
 
 .rich-markdown-viewer pre {
@@ -4086,5 +4125,93 @@ html {
   font-style: italic;
 }
 
+/* Flashcard Reference Notes Split Layout (2-Col vs 1-Col) */
+.notes-section .section-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
 
+.notes-view-mode-toggles {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 2px;
+  gap: 2px;
+}
 
+.notes-view-mode-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 3px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.notes-view-mode-btn:hover {
+  color: #f1f5f9;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.notes-view-mode-btn.active {
+  background: #6366f1;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.flashcard-split-notes-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  align-items: stretch;
+  margin-top: 6px;
+}
+
+@media (max-width: 768px) {
+  .flashcard-split-notes-layout {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+}
+
+.flashcard-notes-pane {
+  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.flashcard-pane-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  background: rgba(30, 41, 59, 0.5);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.flashcard-pane-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #a5b4fc;
+}
+
+.flashcard-pane-body {
+  padding: 12px 14px;
+  flex: 1;
+  overflow-y: auto;
+}
