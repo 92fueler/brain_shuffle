@@ -3978,40 +3978,62 @@ html {
   line-height: inherit !important;
 }
 
+.rich-markdown-viewer .wmde-markdown p,
 .rich-markdown-viewer p {
-  margin-top: 0;
-  margin-bottom: 5px;
+  margin-top: 0 !important;
+  margin-bottom: 6px !important;
+  line-height: 1.45 !important;
 }
 
+.rich-markdown-viewer .wmde-markdown ul,
+.rich-markdown-viewer .wmde-markdown ol,
 .rich-markdown-viewer ul,
 .rich-markdown-viewer ol {
-  padding-left: 20px;
-  margin-top: 3px;
-  margin-bottom: 6px;
+  padding-left: 20px !important;
+  margin-top: 3px !important;
+  margin-bottom: 6px !important;
 }
 
+.rich-markdown-viewer .wmde-markdown ul ul,
+.rich-markdown-viewer .wmde-markdown ul ol,
+.rich-markdown-viewer .wmde-markdown ol ul,
+.rich-markdown-viewer .wmde-markdown ol ol,
 .rich-markdown-viewer ul ul,
 .rich-markdown-viewer ul ol,
 .rich-markdown-viewer ol ul,
 .rich-markdown-viewer ol ol {
-  padding-left: 20px;
-  margin-top: 2px;
-  margin-bottom: 2px;
+  padding-left: 18px !important;
+  margin-top: 2px !important;
+  margin-bottom: 2px !important;
 }
 
+.rich-markdown-viewer .wmde-markdown li,
 .rich-markdown-viewer li {
-  margin-bottom: 3px;
-  line-height: 1.45;
+  margin-top: 1px !important;
+  margin-bottom: 2px !important;
+  line-height: 1.45 !important;
   color: #f1f5f9;
 }
 
+.rich-markdown-viewer .wmde-markdown li + li,
+.rich-markdown-viewer li + li {
+  margin-top: 2px !important;
+}
+
 /* Ensure paragraph inside li does not create block wrapping or vertical margins */
-.rich-markdown-viewer li > p {
-  margin: 0;
-  display: inline;
+.rich-markdown-viewer .wmde-markdown li > p,
+.rich-markdown-viewer .wmde-markdown li p,
+.rich-markdown-viewer li > p,
+.rich-markdown-viewer li p {
+  margin: 0 !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  display: inline !important;
+  line-height: inherit !important;
 }
 
 /* If an unfenced pre occurs inside li, prevent it from rendering as a code block box */
+.rich-markdown-viewer .wmde-markdown li pre:not([class*="language-"]),
 .rich-markdown-viewer li pre:not([class*="language-"]) {
   background: transparent !important;
   border: none !important;
@@ -4025,6 +4047,7 @@ html {
   border-radius: 0 !important;
 }
 
+.rich-markdown-viewer .wmde-markdown li pre:not([class*="language-"]) code,
 .rich-markdown-viewer li pre:not([class*="language-"]) code {
   background: transparent !important;
   border: none !important;
