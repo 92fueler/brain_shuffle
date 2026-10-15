@@ -893,7 +893,6 @@ html {
   font-size: 13px;
   line-height: 1.5;
   color: #e2e8f0;
-  white-space: pre-wrap;
   tab-size: 4;
   -moz-tab-size: 4;
   word-break: break-word;
@@ -3970,12 +3969,23 @@ html {
   color: #e2e8f0;
 }
 
+.rich-markdown-viewer,
+.rich-markdown-viewer.notes-content,
 .rich-markdown-viewer .wmde-markdown {
   background-color: transparent !important;
   color: inherit !important;
   font-family: inherit !important;
   font-size: inherit !important;
   line-height: inherit !important;
+  white-space: normal !important;
+}
+
+.rich-markdown-viewer p,
+.rich-markdown-viewer ul,
+.rich-markdown-viewer ol,
+.rich-markdown-viewer li,
+.rich-markdown-viewer blockquote {
+  white-space: normal !important;
 }
 
 .rich-markdown-viewer .wmde-markdown p,
