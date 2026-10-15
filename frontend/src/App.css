@@ -3490,6 +3490,8 @@ html {
   border-radius: 8px;
   border: 1px solid var(--border-color);
   background: var(--bg-secondary);
+  container-type: inline-size;
+  container-name: notepad-root;
 }
 
 .dual-notepad-topbar {
@@ -3615,6 +3617,7 @@ html {
   border-radius: 5px;
   cursor: pointer;
   white-space: nowrap;
+  flex-shrink: 0;
   transition: all 0.15s ease;
 }
 
@@ -3727,6 +3730,8 @@ html {
   height: 100%;
   min-height: 0;
   overflow: hidden;
+  container-type: inline-size;
+  container-name: notepad-pane;
 }
 
 .dual-panel-header {
@@ -3738,6 +3743,8 @@ html {
   padding: 5px 12px;
   background: #1e293b;
   border-bottom: 1px solid var(--border-color);
+  gap: 6px;
+  flex-wrap: wrap;
   flex-shrink: 0;
   overflow: visible !important;
 }
@@ -3746,6 +3753,7 @@ html {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
 }
 
 .dual-panel-label {
@@ -3754,6 +3762,8 @@ html {
   color: #94a3b8;
   letter-spacing: 0.3px;
   text-transform: uppercase;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .dual-pane-view-toggle {
@@ -3776,6 +3786,8 @@ html {
   border: none;
   border-radius: 3px;
   cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
   transition: all 0.12s ease;
 }
 
@@ -3804,6 +3816,7 @@ html {
   display: flex;
   align-items: center;
   gap: 4px;
+  flex-shrink: 0;
 }
 
 .dual-pane-mini-btn {
@@ -3817,6 +3830,8 @@ html {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
   cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
   transition: all 0.12s ease;
 }
 
@@ -4048,6 +4063,48 @@ html {
   color: #ef4444;
   background: rgba(239, 68, 68, 0.12);
   border-color: rgba(239, 68, 68, 0.3);
+}
+
+/* Anchor code language dropdown to the right edge so it never clips off the right border */
+.dual-panel-actions .dual-lang-dropdown-menu,
+.dual-notepad-quick-actions .dual-lang-dropdown-menu {
+  left: auto;
+  right: 0;
+}
+
+/* 1-Col Topbar: collapse action chip text labels when container <= 640px */
+@container notepad-root (max-width: 640px) {
+  .dual-notepad-quick-actions .dual-action-chip .btn-label {
+    display: none;
+  }
+  .dual-notepad-quick-actions .dual-color-dropdown-menu {
+    left: auto;
+    right: 0;
+  }
+}
+
+/* 2-Col Pane Header (<= 520px): collapse List, Code, Callout, Clear text labels */
+@container notepad-pane (max-width: 520px) {
+  .dual-panel-actions .dual-pane-mini-btn .btn-label {
+    display: none;
+  }
+  .dual-panel-header {
+    padding: 4px 8px;
+  }
+  .dual-panel-actions .dual-color-dropdown-menu {
+    left: auto;
+    right: 0;
+  }
+}
+
+/* 2-Col Pane Header (<= 340px): also collapse Edit/Preview pill text labels */
+@container notepad-pane (max-width: 340px) {
+  .dual-view-pill .btn-label {
+    display: none;
+  }
+  .dual-panel-title-area {
+    gap: 4px;
+  }
 }
 
 .dual-notepad-resize-handle {

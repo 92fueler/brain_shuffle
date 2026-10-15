@@ -729,7 +729,8 @@ export const DualNotepad: React.FC<DualNotepadProps> = ({
           title={`Wrap selection or insert ${activeLang} code block`}
         >
           <Code2 size={targetCol === "single" ? 13 : 11} />
-          <span>Code ({SHORT_LANG_LABELS[activeLang] || activeLang})</span>
+          <span className="btn-label">Code</span>
+          <span className="btn-lang-tag">{SHORT_LANG_LABELS[activeLang] || activeLang}</span>
         </button>
         <button
           type="button"
@@ -933,7 +934,7 @@ export const DualNotepad: React.FC<DualNotepadProps> = ({
                   title="Insert or wrap in bullet points"
                 >
                   <List size={12} />
-                  <span>List</span>
+                  <span className="btn-label">List</span>
                 </button>
                 {renderCodeButtonGroup("single")}
                 <button
@@ -944,7 +945,7 @@ export const DualNotepad: React.FC<DualNotepadProps> = ({
                   title="Insert or wrap in callout quote"
                 >
                   <Sparkles size={12} />
-                  <span>Callout</span>
+                  <span className="btn-label">Callout</span>
                 </button>
                 {col1.trim() && (
                   <button
@@ -954,7 +955,7 @@ export const DualNotepad: React.FC<DualNotepadProps> = ({
                     title="Clear notepad"
                   >
                     <RotateCcw size={12} />
-                    <span>Clear</span>
+                    <span className="btn-label">Clear</span>
                   </button>
                 )}
               </div>
@@ -1042,7 +1043,8 @@ export const DualNotepad: React.FC<DualNotepadProps> = ({
                         onClick={() => setViewModeCol1("edit")}
                         title="Edit Pad 1"
                       >
-                        <Edit3 size={10} /> Edit
+                        <Edit3 size={10} />
+                        <span className="btn-label">Edit</span>
                       </button>
                       <button
                         type="button"
@@ -1050,7 +1052,8 @@ export const DualNotepad: React.FC<DualNotepadProps> = ({
                         onClick={() => setViewModeCol1("preview")}
                         title="Preview Pad 1"
                       >
-                        <Eye size={10} /> Preview
+                        <Eye size={10} />
+                        <span className="btn-label">Preview</span>
                       </button>
                     </div>
                   </div>
@@ -1066,7 +1069,8 @@ export const DualNotepad: React.FC<DualNotepadProps> = ({
                           onClick={() => wrapOrInsertList(1)}
                           title="Insert Bullet List into Pad 1"
                         >
-                          <List size={11} /> List
+                          <List size={11} />
+                          <span className="btn-label">List</span>
                         </button>
                         {renderCodeButtonGroup(1)}
                         <button
@@ -1076,7 +1080,8 @@ export const DualNotepad: React.FC<DualNotepadProps> = ({
                           onClick={() => wrapOrInsertCallout(1)}
                           title="Insert Callout into Pad 1"
                         >
-                          <Sparkles size={11} /> Callout
+                          <Sparkles size={11} />
+                          <span className="btn-label">Callout</span>
                         </button>
                         {col1.trim() && (
                           <button
@@ -1085,7 +1090,8 @@ export const DualNotepad: React.FC<DualNotepadProps> = ({
                             onClick={() => handleClearCol(1)}
                             title={`Clear ${labelCol1}`}
                           >
-                            <RotateCcw size={11} /> Clear
+                            <RotateCcw size={11} />
+                            <span className="btn-label">Clear</span>
                           </button>
                         )}
                       </>
@@ -1133,7 +1139,8 @@ export const DualNotepad: React.FC<DualNotepadProps> = ({
                         onClick={() => setViewModeCol2("edit")}
                         title="Edit Pad 2"
                       >
-                        <Edit3 size={10} /> Edit
+                        <Edit3 size={10} />
+                        <span className="btn-label">Edit</span>
                       </button>
                       <button
                         type="button"
@@ -1141,7 +1148,8 @@ export const DualNotepad: React.FC<DualNotepadProps> = ({
                         onClick={() => setViewModeCol2("preview")}
                         title="Preview Pad 2"
                       >
-                        <Eye size={10} /> Preview
+                        <Eye size={10} />
+                        <span className="btn-label">Preview</span>
                       </button>
                     </div>
                   </div>
@@ -1157,7 +1165,8 @@ export const DualNotepad: React.FC<DualNotepadProps> = ({
                           onClick={() => wrapOrInsertList(2)}
                           title="Insert Bullet List into Pad 2"
                         >
-                          <List size={11} /> List
+                          <List size={11} />
+                          <span className="btn-label">List</span>
                         </button>
                         {renderCodeButtonGroup(2)}
                         <button
@@ -1167,7 +1176,8 @@ export const DualNotepad: React.FC<DualNotepadProps> = ({
                           onClick={() => wrapOrInsertCallout(2)}
                           title="Insert Callout into Pad 2"
                         >
-                          <Sparkles size={11} /> Callout
+                          <Sparkles size={11} />
+                          <span className="btn-label">Callout</span>
                         </button>
                         {col2.trim() && (
                           <button
@@ -1176,7 +1186,8 @@ export const DualNotepad: React.FC<DualNotepadProps> = ({
                             onClick={() => handleClearCol(2)}
                             title={`Clear ${labelCol2}`}
                           >
-                            <RotateCcw size={11} /> Clear
+                            <RotateCcw size={11} />
+                            <span className="btn-label">Clear</span>
                           </button>
                         )}
                       </>
