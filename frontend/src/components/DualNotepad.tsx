@@ -212,60 +212,22 @@ export const DualNotepad: React.FC<DualNotepadProps> = ({
     return { leadingWs, core, trailingWs };
   };
 
-  // Wraps selected text in **bold** or toggles existing bold
-  const wrapOrInsertBold = (targetCol: 1 | 2) => {
+  // Shared helper to apply a text/cursor transformation to Pad 1 or Pad 2
+  const applyColTransform = (
+    targetCol: 1 | 2,
+    compute: (
+      currentVal: string,
+      textarea: HTMLTextAreaElement | null
+    ) => { nextVal: string; cursorStart: number; cursorEnd: number } | null
+  ) => {
     ensureEditMode(targetCol);
-
     const isCol1 = targetCol === 1;
     const currentVal = isCol1 ? col1 : col2;
     const textarea = isCol1 ? textarea1Ref.current : textarea2Ref.current;
 
-    let nextVal = "";
-    let cursorStart = 0;
-    let cursorEnd = 0;
-
-    if (textarea) {
-      const { selectionStart, selectionEnd } = textarea;
-      const selectedText = currentVal.slice(selectionStart, selectionEnd);
-      const before = currentVal.slice(0, selectionStart);
-      const after = currentVal.slice(selectionEnd);
-
-      if (selectedText.length > 0) {
-        const { leadingWs, core, trailingWs } = extractSurroundingWhitespace(selectedText);
-
-        if (core.length > 0) {
-          if (core.startsWith("**") && core.endsWith("**") && core.length >= 4) {
-            const unwrapped = core.slice(2, -2).trim();
-            nextVal = before + leadingWs + unwrapped + trailingWs + after;
-            cursorStart = selectionStart + leadingWs.length;
-            cursorEnd = cursorStart + unwrapped.length;
-          } else if (before.endsWith("**") && after.startsWith("**")) {
-            nextVal = before.slice(0, -2) + selectedText + after.slice(2);
-            cursorStart = selectionStart - 2;
-            cursorEnd = cursorStart + selectedText.length;
-          } else {
-            const wrapped = `**${core}**`;
-            nextVal = before + leadingWs + wrapped + trailingWs + after;
-            cursorStart = selectionStart + leadingWs.length;
-            cursorEnd = cursorStart + wrapped.length;
-          }
-        } else {
-          const placeholder = "**bold**";
-          nextVal = before + placeholder + after;
-          cursorStart = selectionStart + 2;
-          cursorEnd = cursorStart + 4;
-        }
-      } else {
-        const placeholder = "**bold**";
-        nextVal = before + placeholder + after;
-        cursorStart = selectionStart + 2;
-        cursorEnd = cursorStart + 4;
-      }
-    } else {
-      nextVal = currentVal + (currentVal ? " " : "") + "**bold**";
-      cursorStart = nextVal.length - 6;
-      cursorEnd = nextVal.length - 2;
-    }
+    const result = compute(currentVal, textarea);
+    if (!result) return;
+    const { nextVal, cursorStart, cursorEnd } = result;
 
     if (isCol1) {
       setCol1(nextVal);
@@ -281,21 +243,69 @@ export const DualNotepad: React.FC<DualNotepadProps> = ({
         textarea.setSelectionRange(cursorStart, cursorEnd);
       });
     }
+  };
+
+  // Wraps selected text in **bold** or toggles existing bold
+  const wrapOrInsertBold = (targetCol: 1 | 2) => {
+    applyColTransform(targetCol, (currentVal, textarea) => {
+      if (!textarea) {
+        const nextVal = currentVal + (currentVal ? " " : "") + "**bold**";
+        return { nextVal, cursorStart: nextVal.length - 6, cursorEnd: nextVal.length - 2 };
+      }
+
+      const { selectionStart, selectionEnd } = textarea;
+      const selectedText = currentVal.slice(selectionStart, selectionEnd);
+      const before = currentVal.slice(0, selectionStart);
+      const after = currentVal.slice(selectionEnd);
+
+      if (selectedText.length > 0) {
+        const { leadingWs, core, trailingWs } = extractSurroundingWhitespace(selectedText);
+        if (core.length > 0) {
+          if (core.startsWith("**") && core.endsWith("**") && core.length >= 4) {
+            const unwrapped = core.slice(2, -2).trim();
+            const cursorStart = selectionStart + leadingWs.length;
+            return {
+              nextVal: before + leadingWs + unwrapped + trailingWs + after,
+              cursorStart,
+              cursorEnd: cursorStart + unwrapped.length,
+            };
+          }
+          if (before.endsWith("**") && after.startsWith("**")) {
+            const cursorStart = selectionStart - 2;
+            return {
+              nextVal: before.slice(0, -2) + selectedText + after.slice(2),
+              cursorStart,
+              cursorEnd: cursorStart + selectedText.length,
+            };
+          }
+          const wrapped = `**${core}**`;
+          const cursorStart = selectionStart + leadingWs.length;
+          return {
+            nextVal: before + leadingWs + wrapped + trailingWs + after,
+            cursorStart,
+            cursorEnd: cursorStart + wrapped.length,
+          };
+        }
+      }
+
+      const placeholder = "**bold**";
+      const cursorStart = selectionStart + 2;
+      return {
+        nextVal: before + placeholder + after,
+        cursorStart,
+        cursorEnd: cursorStart + 4,
+      };
+    });
   };
 
   // Wraps selected text in *italic* or toggles existing italic
   const wrapOrInsertItalic = (targetCol: 1 | 2) => {
-    ensureEditMode(targetCol);
+    applyColTransform(targetCol, (currentVal, textarea) => {
+      if (!textarea) {
+        const nextVal = currentVal + (currentVal ? " " : "") + "*italic*";
+        return { nextVal, cursorStart: nextVal.length - 7, cursorEnd: nextVal.length - 1 };
+      }
 
-    const isCol1 = targetCol === 1;
-    const currentVal = isCol1 ? col1 : col2;
-    const textarea = isCol1 ? textarea1Ref.current : textarea2Ref.current;
-
-    let nextVal = "";
-    let cursorStart = 0;
-    let cursorEnd = 0;
-
-    if (textarea) {
       const { selectionStart, selectionEnd } = textarea;
       const selectedText = currentVal.slice(selectionStart, selectionEnd);
       const before = currentVal.slice(0, selectionStart);
@@ -303,80 +313,55 @@ export const DualNotepad: React.FC<DualNotepadProps> = ({
 
       if (selectedText.length > 0) {
         const { leadingWs, core, trailingWs } = extractSurroundingWhitespace(selectedText);
-
         if (core.length > 0) {
-          if (
-            core.startsWith("*") &&
-            core.endsWith("*") &&
-            core.length >= 2 &&
-            !core.startsWith("**")
-          ) {
+          if (core.startsWith("*") && core.endsWith("*") && core.length >= 2 && !core.startsWith("**")) {
             const unwrapped = core.slice(1, -1).trim();
-            nextVal = before + leadingWs + unwrapped + trailingWs + after;
-            cursorStart = selectionStart + leadingWs.length;
-            cursorEnd = cursorStart + unwrapped.length;
-          } else if (
-            before.endsWith("*") &&
-            !before.endsWith("**") &&
-            after.startsWith("*") &&
-            !after.startsWith("**")
-          ) {
-            nextVal = before.slice(0, -1) + selectedText + after.slice(1);
-            cursorStart = selectionStart - 1;
-            cursorEnd = cursorStart + selectedText.length;
-          } else {
-            const wrapped = `*${core}*`;
-            nextVal = before + leadingWs + wrapped + trailingWs + after;
-            cursorStart = selectionStart + leadingWs.length;
-            cursorEnd = cursorStart + wrapped.length;
+            const cursorStart = selectionStart + leadingWs.length;
+            return {
+              nextVal: before + leadingWs + unwrapped + trailingWs + after,
+              cursorStart,
+              cursorEnd: cursorStart + unwrapped.length,
+            };
           }
-        } else {
-          const placeholder = "*italic*";
-          nextVal = before + placeholder + after;
-          cursorStart = selectionStart + 1;
-          cursorEnd = cursorStart + 6;
+          if (before.endsWith("*") && !before.endsWith("**") && after.startsWith("*") && !after.startsWith("**")) {
+            const cursorStart = selectionStart - 1;
+            return {
+              nextVal: before.slice(0, -1) + selectedText + after.slice(1),
+              cursorStart,
+              cursorEnd: cursorStart + selectedText.length,
+            };
+          }
+          const wrapped = `*${core}*`;
+          const cursorStart = selectionStart + leadingWs.length;
+          return {
+            nextVal: before + leadingWs + wrapped + trailingWs + after,
+            cursorStart,
+            cursorEnd: cursorStart + wrapped.length,
+          };
         }
-      } else {
-        const placeholder = "*italic*";
-        nextVal = before + placeholder + after;
-        cursorStart = selectionStart + 1;
-        cursorEnd = cursorStart + 6;
       }
-    } else {
-      nextVal = currentVal + (currentVal ? " " : "") + "*italic*";
-      cursorStart = nextVal.length - 7;
-      cursorEnd = nextVal.length - 1;
-    }
 
-    if (isCol1) {
-      setCol1(nextVal);
-      emitChange(nextVal, col2, isSplit);
-    } else {
-      setCol2(nextVal);
-      emitChange(col1, nextVal, isSplit);
-    }
-
-    if (textarea) {
-      requestAnimationFrame(() => {
-        textarea.focus();
-        textarea.setSelectionRange(cursorStart, cursorEnd);
-      });
-    }
+      const placeholder = "*italic*";
+      const cursorStart = selectionStart + 1;
+      return {
+        nextVal: before + placeholder + after,
+        cursorStart,
+        cursorEnd: cursorStart + 6,
+      };
+    });
   };
 
   // Wraps selected text in <span style="color: ...">...</span> or updates/clears existing color
   const wrapOrInsertColor = (targetCol: 1 | 2, colorHex: string) => {
-    ensureEditMode(targetCol);
+    applyColTransform(targetCol, (currentVal, textarea) => {
+      if (!textarea) {
+        if (!colorHex) return null;
+        const snippet = `<span style="color: ${colorHex}">colored text</span>`;
+        const nextVal = currentVal + (currentVal ? " " : "") + snippet;
+        const cursorStart = nextVal.length - snippet.length + `<span style="color: ${colorHex}">`.length;
+        return { nextVal, cursorStart, cursorEnd: cursorStart + "colored text".length };
+      }
 
-    const isCol1 = targetCol === 1;
-    const currentVal = isCol1 ? col1 : col2;
-    const textarea = isCol1 ? textarea1Ref.current : textarea2Ref.current;
-
-    let nextVal = "";
-    let cursorStart = 0;
-    let cursorEnd = 0;
-
-    if (textarea) {
       const { selectionStart, selectionEnd } = textarea;
       const selectedText = currentVal.slice(selectionStart, selectionEnd);
       const before = currentVal.slice(0, selectionStart);
@@ -384,91 +369,82 @@ export const DualNotepad: React.FC<DualNotepadProps> = ({
 
       if (selectedText.length > 0) {
         const { leadingWs, core, trailingWs } = extractSurroundingWhitespace(selectedText);
+        if (core.length === 0) return null;
 
-        if (core.length > 0) {
-          if (!colorHex) {
-            // Clearing color
-            const spanOuterRegex = /^<span style="color:\s*[^"]*">([\s\S]*)<\/span>$/i;
-            if (spanOuterRegex.test(core)) {
-              const stripped = core.replace(spanOuterRegex, "$1");
-              nextVal = before + leadingWs + stripped + trailingWs + after;
-              cursorStart = selectionStart + leadingWs.length;
-              cursorEnd = cursorStart + stripped.length;
-            } else if (/<span style="color:\s*[^"]*">/i.test(core)) {
-              const stripped = core.replace(/<span style="color:\s*[^"]*">([\s\S]*?)<\/span>/gi, "$1");
-              nextVal = before + leadingWs + stripped + trailingWs + after;
-              cursorStart = selectionStart + leadingWs.length;
-              cursorEnd = cursorStart + stripped.length;
-            } else {
-              const openTagMatch = before.match(/<span style="color:\s*[^"]*">$/i);
-              const closeTagMatch = after.match(/^<\/span>/i);
-              if (openTagMatch && closeTagMatch) {
-                nextVal = before.slice(0, -openTagMatch[0].length) + selectedText + after.slice(closeTagMatch[0].length);
-                cursorStart = selectionStart - openTagMatch[0].length;
-                cursorEnd = cursorStart + selectedText.length;
-              } else {
-                return;
-              }
-            }
-          } else {
-            // Applying colorHex
-            const spanOuterRegex = /^<span style="color:\s*[^"]*">([\s\S]*)<\/span>$/i;
-            if (spanOuterRegex.test(core)) {
-              const inner = core.replace(spanOuterRegex, "$1");
-              const wrapped = `<span style="color: ${colorHex}">${inner}</span>`;
-              nextVal = before + leadingWs + wrapped + trailingWs + after;
-              cursorStart = selectionStart + leadingWs.length;
-              cursorEnd = cursorStart + wrapped.length;
-            } else {
-              const openTagMatch = before.match(/<span style="color:\s*[^"]*">$/i);
-              const closeTagMatch = after.match(/^<\/span>/i);
-              if (openTagMatch && closeTagMatch) {
-                const beforeClean = before.slice(0, -openTagMatch[0].length);
-                const afterClean = after.slice(closeTagMatch[0].length);
-                const wrapped = `<span style="color: ${colorHex}">${core}</span>`;
-                nextVal = beforeClean + leadingWs + wrapped + trailingWs + afterClean;
-                cursorStart = beforeClean.length + leadingWs.length;
-                cursorEnd = cursorStart + wrapped.length;
-              } else {
-                const wrapped = `<span style="color: ${colorHex}">${core}</span>`;
-                nextVal = before + leadingWs + wrapped + trailingWs + after;
-                cursorStart = selectionStart + leadingWs.length;
-                cursorEnd = cursorStart + wrapped.length;
-              }
-            }
+        const spanOuterRegex = /^<span style="color:\s*[^"]*">([\s\S]*)<\/span>$/i;
+        const openTagMatch = before.match(/<span style="color:\s*[^"]*">$/i);
+        const closeTagMatch = after.match(/^<\/span>/i);
+
+        if (!colorHex) {
+          if (spanOuterRegex.test(core)) {
+            const stripped = core.replace(spanOuterRegex, "$1");
+            const cursorStart = selectionStart + leadingWs.length;
+            return {
+              nextVal: before + leadingWs + stripped + trailingWs + after,
+              cursorStart,
+              cursorEnd: cursorStart + stripped.length,
+            };
           }
+          if (/<span style="color:\s*[^"]*">/i.test(core)) {
+            const stripped = core.replace(/<span style="color:\s*[^"]*">([\s\S]*?)<\/span>/gi, "$1");
+            const cursorStart = selectionStart + leadingWs.length;
+            return {
+              nextVal: before + leadingWs + stripped + trailingWs + after,
+              cursorStart,
+              cursorEnd: cursorStart + stripped.length,
+            };
+          }
+          if (openTagMatch && closeTagMatch) {
+            const cursorStart = selectionStart - openTagMatch[0].length;
+            return {
+              nextVal: before.slice(0, -openTagMatch[0].length) + selectedText + after.slice(closeTagMatch[0].length),
+              cursorStart,
+              cursorEnd: cursorStart + selectedText.length,
+            };
+          }
+          return null;
         }
-      } else {
-        if (!colorHex) return;
-        const tagOpen = `<span style="color: ${colorHex}">`;
-        const tagClose = `</span>`;
-        const placeholder = `${tagOpen}colored text${tagClose}`;
-        nextVal = before + placeholder + after;
-        cursorStart = selectionStart + tagOpen.length;
-        cursorEnd = cursorStart + "colored text".length;
+
+        if (spanOuterRegex.test(core)) {
+          const inner = core.replace(spanOuterRegex, "$1");
+          const wrapped = `<span style="color: ${colorHex}">${inner}</span>`;
+          const cursorStart = selectionStart + leadingWs.length;
+          return {
+            nextVal: before + leadingWs + wrapped + trailingWs + after,
+            cursorStart,
+            cursorEnd: cursorStart + wrapped.length,
+          };
+        }
+        if (openTagMatch && closeTagMatch) {
+          const beforeClean = before.slice(0, -openTagMatch[0].length);
+          const afterClean = after.slice(closeTagMatch[0].length);
+          const wrapped = `<span style="color: ${colorHex}">${core}</span>`;
+          const cursorStart = beforeClean.length + leadingWs.length;
+          return {
+            nextVal: beforeClean + leadingWs + wrapped + trailingWs + afterClean,
+            cursorStart,
+            cursorEnd: cursorStart + wrapped.length,
+          };
+        }
+        const wrapped = `<span style="color: ${colorHex}">${core}</span>`;
+        const cursorStart = selectionStart + leadingWs.length;
+        return {
+          nextVal: before + leadingWs + wrapped + trailingWs + after,
+          cursorStart,
+          cursorEnd: cursorStart + wrapped.length,
+        };
       }
-    } else {
-      if (!colorHex) return;
-      const snippet = `<span style="color: ${colorHex}">colored text</span>`;
-      nextVal = currentVal + (currentVal ? " " : "") + snippet;
-      cursorStart = nextVal.length - snippet.length + `<span style="color: ${colorHex}">`.length;
-      cursorEnd = cursorStart + "colored text".length;
-    }
 
-    if (isCol1) {
-      setCol1(nextVal);
-      emitChange(nextVal, col2, isSplit);
-    } else {
-      setCol2(nextVal);
-      emitChange(col1, nextVal, isSplit);
-    }
-
-    if (textarea) {
-      requestAnimationFrame(() => {
-        textarea.focus();
-        textarea.setSelectionRange(cursorStart, cursorEnd);
-      });
-    }
+      if (!colorHex) return null;
+      const tagOpen = `<span style="color: ${colorHex}">`;
+      const placeholder = `${tagOpen}colored text</span>`;
+      const cursorStart = selectionStart + tagOpen.length;
+      return {
+        nextVal: before + placeholder + after,
+        cursorStart,
+        cursorEnd: cursorStart + "colored text".length,
+      };
+    });
   };
 
   // Keyboard helper for auto-indent, soft backspace, and tab indentation
@@ -510,189 +486,94 @@ export const DualNotepad: React.FC<DualNotepadProps> = ({
 
   // Wraps selected text in code block or inserts code template with chosen language
   const wrapOrInsertCodeBlock = (lang: string, targetCol: 1 | 2) => {
-    ensureEditMode(targetCol);
-
-    const isCol1 = targetCol === 1;
-    const currentVal = isCol1 ? col1 : col2;
-    const textarea = isCol1 ? textarea1Ref.current : textarea2Ref.current;
     const langTag = lang === "text" ? "" : lang;
+    applyColTransform(targetCol, (currentVal, textarea) => {
+      if (!textarea) {
+        const separator = currentVal.trim() ? (currentVal.endsWith("\n") ? "\n" : "\n\n") : "";
+        const nextVal = currentVal + separator + `\`\`\`${langTag}\n\n\`\`\`\n`;
+        return { nextVal, cursorStart: nextVal.length, cursorEnd: nextVal.length };
+      }
 
-    let nextVal = "";
-    let cursorStart = 0;
-    let cursorEnd = 0;
-
-    if (textarea) {
       const { selectionStart, selectionEnd } = textarea;
       const selectedText = currentVal.slice(selectionStart, selectionEnd);
       const before = currentVal.slice(0, selectionStart);
       const after = currentVal.slice(selectionEnd);
-
-      const needBeforeNewline = before.length > 0 && !before.endsWith("\n");
-      const prefix = needBeforeNewline ? "\n" : "";
+      const prefix = before.length > 0 && !before.endsWith("\n") ? "\n" : "";
 
       if (selectedText.trim().length > 0) {
-        // Selection wrapping
         const cleanSelected = selectedText.replace(/\r/g, "").replace(/^\n+|\n+$/g, "");
         const wrapped = `${prefix}\`\`\`${langTag}\n${cleanSelected}\n\`\`\`\n`;
-        nextVal = before + wrapped + after;
-        cursorStart = before.length + wrapped.length;
-        cursorEnd = cursorStart;
-      } else {
-        // No selection: insert template and position cursor on the empty middle line
-        const template = `${prefix}\`\`\`${langTag}\n\n\`\`\`\n`;
-        nextVal = before + template + after;
-        cursorStart = before.length + prefix.length + 3 + langTag.length + 1;
-        cursorEnd = cursorStart;
+        const cursorStart = before.length + wrapped.length;
+        return { nextVal: before + wrapped + after, cursorStart, cursorEnd: cursorStart };
       }
-    } else {
-      // Fallback: append
-      const separator = currentVal.trim() ? (currentVal.endsWith("\n") ? "\n" : "\n\n") : "";
-      const template = `\`\`\`${langTag}\n\n\`\`\`\n`;
-      nextVal = currentVal + separator + template;
-      cursorStart = nextVal.length;
-      cursorEnd = cursorStart;
-    }
 
-    if (isCol1) {
-      setCol1(nextVal);
-      emitChange(nextVal, col2, isSplit);
-    } else {
-      setCol2(nextVal);
-      emitChange(col1, nextVal, isSplit);
-    }
-
-    if (textarea) {
-      requestAnimationFrame(() => {
-        textarea.focus();
-        textarea.setSelectionRange(cursorStart, cursorEnd);
-      });
-    }
+      const template = `${prefix}\`\`\`${langTag}\n\n\`\`\`\n`;
+      const cursorStart = before.length + prefix.length + 3 + langTag.length + 1;
+      return { nextVal: before + template + after, cursorStart, cursorEnd: cursorStart };
+    });
   };
 
   // Wraps selected text in callout (> line) or inserts callout template
   const wrapOrInsertCallout = (targetCol: 1 | 2) => {
-    ensureEditMode(targetCol);
+    applyColTransform(targetCol, (currentVal, textarea) => {
+      if (!textarea) {
+        const separator = currentVal.trim() ? (currentVal.endsWith("\n") ? "\n" : "\n\n") : "";
+        const nextVal = currentVal + separator + "> **Note:** Key takeaway or gotcha\n";
+        return { nextVal, cursorStart: nextVal.length, cursorEnd: nextVal.length };
+      }
 
-    const isCol1 = targetCol === 1;
-    const currentVal = isCol1 ? col1 : col2;
-    const textarea = isCol1 ? textarea1Ref.current : textarea2Ref.current;
-
-    let nextVal = "";
-    let cursorStart = 0;
-    let cursorEnd = 0;
-
-    if (textarea) {
       const { selectionStart, selectionEnd } = textarea;
       const selectedText = currentVal.slice(selectionStart, selectionEnd);
       const before = currentVal.slice(0, selectionStart);
       const after = currentVal.slice(selectionEnd);
+      const prefix = before.length > 0 && !before.endsWith("\n") ? "\n" : "";
 
-      const needBeforeNewline = before.length > 0 && !before.endsWith("\n");
-      const prefix = needBeforeNewline ? "\n" : "";
+      const insertion =
+        selectedText.trim().length > 0
+          ? `${prefix}${selectedText
+              .replace(/\r/g, "")
+              .replace(/\n+$/, "")
+              .split("\n")
+              .map((line) => (line.startsWith("> ") ? line : `> ${line}`))
+              .join("\n")}\n`
+          : `${prefix}> **Note:** `;
 
-      if (selectedText.trim().length > 0) {
-        const cleanSelected = selectedText.replace(/\r/g, "").replace(/\n+$/, "");
-        const wrapped = cleanSelected
-          .split("\n")
-          .map((line) => (line.startsWith("> ") ? line : `> ${line}`))
-          .join("\n");
-        const insertion = `${prefix}${wrapped}\n`;
-        nextVal = before + insertion + after;
-        cursorStart = before.length + insertion.length;
-        cursorEnd = cursorStart;
-      } else {
-        const insertion = `${prefix}> **Note:** `;
-        nextVal = before + insertion + after;
-        cursorStart = before.length + insertion.length;
-        cursorEnd = cursorStart;
-      }
-    } else {
-      const separator = currentVal.trim() ? (currentVal.endsWith("\n") ? "\n" : "\n\n") : "";
-      const snippet = "> **Note:** Key takeaway or gotcha\n";
-      nextVal = currentVal + separator + snippet;
-      cursorStart = nextVal.length;
-      cursorEnd = cursorStart;
-    }
-
-    if (isCol1) {
-      setCol1(nextVal);
-      emitChange(nextVal, col2, isSplit);
-    } else {
-      setCol2(nextVal);
-      emitChange(col1, nextVal, isSplit);
-    }
-
-    if (textarea) {
-      requestAnimationFrame(() => {
-        textarea.focus();
-        textarea.setSelectionRange(cursorStart, cursorEnd);
-      });
-    }
+      const cursorStart = before.length + insertion.length;
+      return { nextVal: before + insertion + after, cursorStart, cursorEnd: cursorStart };
+    });
   };
 
   // Wraps selected text in bullet points or inserts bullet list template
   const wrapOrInsertList = (targetCol: 1 | 2) => {
-    ensureEditMode(targetCol);
+    applyColTransform(targetCol, (currentVal, textarea) => {
+      if (!textarea) {
+        const separator = currentVal.trim() ? (currentVal.endsWith("\n") ? "\n" : "\n\n") : "";
+        const nextVal = currentVal + separator + "- Point 1\n- Point 2\n- Point 3\n";
+        return { nextVal, cursorStart: nextVal.length, cursorEnd: nextVal.length };
+      }
 
-    const isCol1 = targetCol === 1;
-    const currentVal = isCol1 ? col1 : col2;
-    const textarea = isCol1 ? textarea1Ref.current : textarea2Ref.current;
-
-    let nextVal = "";
-    let cursorStart = 0;
-    let cursorEnd = 0;
-
-    if (textarea) {
       const { selectionStart, selectionEnd } = textarea;
       const selectedText = currentVal.slice(selectionStart, selectionEnd);
       const before = currentVal.slice(0, selectionStart);
       const after = currentVal.slice(selectionEnd);
+      const prefix = before.length > 0 && !before.endsWith("\n") ? "\n" : "";
 
-      const needBeforeNewline = before.length > 0 && !before.endsWith("\n");
-      const prefix = needBeforeNewline ? "\n" : "";
+      const insertion =
+        selectedText.trim().length > 0
+          ? `${prefix}${selectedText
+              .replace(/\r/g, "")
+              .replace(/\n+$/, "")
+              .split("\n")
+              .map((line) => {
+                if (!line.trim()) return line;
+                return line.match(/^([ \t]*)([-*•]|\d+\.)[ \t]+/) ? line : `- ${line}`;
+              })
+              .join("\n")}\n`
+          : `${prefix}- Point 1\n- Point 2\n- Point 3\n`;
 
-      if (selectedText.trim().length > 0) {
-        const cleanSelected = selectedText.replace(/\r/g, "").replace(/\n+$/, "");
-        const wrapped = cleanSelected
-          .split("\n")
-          .map((line) => {
-            const trimmed = line.trim();
-            if (!trimmed) return line;
-            return line.match(/^([ \t]*)([-*•]|\d+\.)[ \t]+/) ? line : `- ${line}`;
-          })
-          .join("\n");
-        const insertion = `${prefix}${wrapped}\n`;
-        nextVal = before + insertion + after;
-        cursorStart = before.length + insertion.length;
-        cursorEnd = cursorStart;
-      } else {
-        const insertion = `${prefix}- Point 1\n- Point 2\n- Point 3\n`;
-        nextVal = before + insertion + after;
-        cursorStart = before.length + insertion.length;
-        cursorEnd = cursorStart;
-      }
-    } else {
-      const separator = currentVal.trim() ? (currentVal.endsWith("\n") ? "\n" : "\n\n") : "";
-      const snippet = "- Point 1\n- Point 2\n- Point 3\n";
-      nextVal = currentVal + separator + snippet;
-      cursorStart = nextVal.length;
-      cursorEnd = cursorStart;
-    }
-
-    if (isCol1) {
-      setCol1(nextVal);
-      emitChange(nextVal, col2, isSplit);
-    } else {
-      setCol2(nextVal);
-      emitChange(col1, nextVal, isSplit);
-    }
-
-    if (textarea) {
-      requestAnimationFrame(() => {
-        textarea.focus();
-        textarea.setSelectionRange(cursorStart, cursorEnd);
-      });
-    }
+      const cursorStart = before.length + insertion.length;
+      return { nextVal: before + insertion + after, cursorStart, cursorEnd: cursorStart };
+    });
   };
 
   const handleClearCol = (targetCol: 1 | 2) => {
@@ -1030,194 +911,114 @@ export const DualNotepad: React.FC<DualNotepadProps> = ({
         ) : (
           /* Split Column Mode: Two identical editable / previewable pads */
           <Group orientation="horizontal" className="dual-notepad-split-group">
-            {/* Pad 1 (Left) */}
-            <Panel defaultSize={50} minSize={25} className="dual-notepad-panel">
-              <div className="dual-panel-inner">
-                <div className="dual-panel-header">
-                  <div className="dual-panel-title-area">
-                    <span className="dual-panel-label">{labelCol1}</span>
-                    <div className="dual-pane-view-toggle">
-                      <button
-                        type="button"
-                        className={`dual-view-pill ${viewModeCol1 === "edit" ? "active" : ""}`}
-                        onClick={() => setViewModeCol1("edit")}
-                        title="Edit Pad 1"
-                      >
-                        <Edit3 size={10} />
-                        <span className="btn-label">Edit</span>
-                      </button>
-                      <button
-                        type="button"
-                        className={`dual-view-pill ${viewModeCol1 === "preview" ? "active" : ""}`}
-                        onClick={() => setViewModeCol1("preview")}
-                        title="Preview Pad 1"
-                      >
-                        <Eye size={10} />
-                        <span className="btn-label">Preview</span>
-                      </button>
+            {([1, 2] as const).map((colIdx, i) => {
+              const isFirst = colIdx === 1;
+              const colLabel = isFirst ? labelCol1 : labelCol2;
+              const colViewMode = isFirst ? viewModeCol1 : viewModeCol2;
+              const setColViewMode = isFirst ? setViewModeCol1 : setViewModeCol2;
+              const colValue = isFirst ? col1 : col2;
+              const handleColChange = isFirst ? handleCol1Change : handleCol2Change;
+              const setColState = isFirst ? setCol1 : setCol2;
+              const colPlaceholder = isFirst ? placeholderCol1 : placeholderCol2;
+              const colRef = isFirst ? textarea1Ref : textarea2Ref;
+
+              return (
+                <React.Fragment key={colIdx}>
+                  {i > 0 && <Separator className="dual-notepad-resize-handle" />}
+                  <Panel defaultSize={50} minSize={25} className="dual-notepad-panel">
+                    <div className="dual-panel-inner">
+                      <div className="dual-panel-header">
+                        <div className="dual-panel-title-area">
+                          <span className="dual-panel-label">{colLabel}</span>
+                          <div className="dual-pane-view-toggle">
+                            <button
+                              type="button"
+                              className={`dual-view-pill ${colViewMode === "edit" ? "active" : ""}`}
+                              onClick={() => setColViewMode("edit")}
+                              title={`Edit Pad ${colIdx}`}
+                            >
+                              <Edit3 size={10} />
+                              <span className="btn-label">Edit</span>
+                            </button>
+                            <button
+                              type="button"
+                              className={`dual-view-pill ${colViewMode === "preview" ? "active" : ""}`}
+                              onClick={() => setColViewMode("preview")}
+                              title={`Preview Pad ${colIdx}`}
+                            >
+                              <Eye size={10} />
+                              <span className="btn-label">Preview</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="dual-panel-actions">
+                          {colViewMode === "edit" ? (
+                            <>
+                              {renderFormatButtons(colIdx)}
+                              <button
+                                type="button"
+                                className="dual-pane-mini-btn"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => wrapOrInsertList(colIdx)}
+                                title={`Insert Bullet List into Pad ${colIdx}`}
+                              >
+                                <List size={11} />
+                                <span className="btn-label">List</span>
+                              </button>
+                              {renderCodeButtonGroup(colIdx)}
+                              <button
+                                type="button"
+                                className="dual-pane-mini-btn"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => wrapOrInsertCallout(colIdx)}
+                                title={`Insert Callout into Pad ${colIdx}`}
+                              >
+                                <Sparkles size={11} />
+                                <span className="btn-label">Callout</span>
+                              </button>
+                              {colValue.trim() && (
+                                <button
+                                  type="button"
+                                  className="dual-pane-mini-btn clear"
+                                  onClick={() => handleClearCol(colIdx)}
+                                  title={`Clear ${colLabel}`}
+                                >
+                                  <RotateCcw size={11} />
+                                  <span className="btn-label">Clear</span>
+                                </button>
+                              )}
+                            </>
+                          ) : (
+                            <span className="dual-pane-preview-tag">Previewing</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {colViewMode === "edit" ? (
+                        <textarea
+                          ref={colRef}
+                          className="dual-pane-textarea"
+                          value={colValue}
+                          onChange={(e) => handleColChange(e.target.value)}
+                          onKeyDown={handleKeyDown(setColState, !isFirst)}
+                          placeholder={colPlaceholder}
+                          spellCheck={false}
+                        />
+                      ) : (
+                        <div className="dual-pane-preview-container">
+                          {colValue.trim() ? (
+                            <MarkdownViewer source={colValue} />
+                          ) : (
+                            <div className="dual-preview-empty">Nothing written in {colLabel} yet.</div>
+                          )}
+                        </div>
+                      )}
                     </div>
-                  </div>
-
-                  <div className="dual-panel-actions">
-                    {viewModeCol1 === "edit" ? (
-                      <>
-                        {renderFormatButtons(1)}
-                        <button
-                          type="button"
-                          className="dual-pane-mini-btn"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => wrapOrInsertList(1)}
-                          title="Insert Bullet List into Pad 1"
-                        >
-                          <List size={11} />
-                          <span className="btn-label">List</span>
-                        </button>
-                        {renderCodeButtonGroup(1)}
-                        <button
-                          type="button"
-                          className="dual-pane-mini-btn"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => wrapOrInsertCallout(1)}
-                          title="Insert Callout into Pad 1"
-                        >
-                          <Sparkles size={11} />
-                          <span className="btn-label">Callout</span>
-                        </button>
-                        {col1.trim() && (
-                          <button
-                            type="button"
-                            className="dual-pane-mini-btn clear"
-                            onClick={() => handleClearCol(1)}
-                            title={`Clear ${labelCol1}`}
-                          >
-                            <RotateCcw size={11} />
-                            <span className="btn-label">Clear</span>
-                          </button>
-                        )}
-                      </>
-                    ) : (
-                      <span className="dual-pane-preview-tag">Previewing</span>
-                    )}
-                  </div>
-                </div>
-
-                {viewModeCol1 === "edit" ? (
-                  <textarea
-                    ref={textarea1Ref}
-                    className="dual-pane-textarea"
-                    value={col1}
-                    onChange={(e) => handleCol1Change(e.target.value)}
-                    onKeyDown={handleKeyDown(setCol1, false)}
-                    placeholder={placeholderCol1}
-                    spellCheck={false}
-                  />
-                ) : (
-                  <div className="dual-pane-preview-container">
-                    {col1.trim() ? (
-                      <MarkdownViewer source={col1} />
-                    ) : (
-                      <div className="dual-preview-empty">Nothing written in {labelCol1} yet.</div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </Panel>
-
-            {/* Draggable Divider Handle */}
-            <Separator className="dual-notepad-resize-handle" />
-
-            {/* Pad 2 (Right) */}
-            <Panel defaultSize={50} minSize={25} className="dual-notepad-panel">
-              <div className="dual-panel-inner">
-                <div className="dual-panel-header">
-                  <div className="dual-panel-title-area">
-                    <span className="dual-panel-label">{labelCol2}</span>
-                    <div className="dual-pane-view-toggle">
-                      <button
-                        type="button"
-                        className={`dual-view-pill ${viewModeCol2 === "edit" ? "active" : ""}`}
-                        onClick={() => setViewModeCol2("edit")}
-                        title="Edit Pad 2"
-                      >
-                        <Edit3 size={10} />
-                        <span className="btn-label">Edit</span>
-                      </button>
-                      <button
-                        type="button"
-                        className={`dual-view-pill ${viewModeCol2 === "preview" ? "active" : ""}`}
-                        onClick={() => setViewModeCol2("preview")}
-                        title="Preview Pad 2"
-                      >
-                        <Eye size={10} />
-                        <span className="btn-label">Preview</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="dual-panel-actions">
-                    {viewModeCol2 === "edit" ? (
-                      <>
-                        {renderFormatButtons(2)}
-                        <button
-                          type="button"
-                          className="dual-pane-mini-btn"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => wrapOrInsertList(2)}
-                          title="Insert Bullet List into Pad 2"
-                        >
-                          <List size={11} />
-                          <span className="btn-label">List</span>
-                        </button>
-                        {renderCodeButtonGroup(2)}
-                        <button
-                          type="button"
-                          className="dual-pane-mini-btn"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => wrapOrInsertCallout(2)}
-                          title="Insert Callout into Pad 2"
-                        >
-                          <Sparkles size={11} />
-                          <span className="btn-label">Callout</span>
-                        </button>
-                        {col2.trim() && (
-                          <button
-                            type="button"
-                            className="dual-pane-mini-btn clear"
-                            onClick={() => handleClearCol(2)}
-                            title={`Clear ${labelCol2}`}
-                          >
-                            <RotateCcw size={11} />
-                            <span className="btn-label">Clear</span>
-                          </button>
-                        )}
-                      </>
-                    ) : (
-                      <span className="dual-pane-preview-tag">Previewing</span>
-                    )}
-                  </div>
-                </div>
-
-                {viewModeCol2 === "edit" ? (
-                  <textarea
-                    ref={textarea2Ref}
-                    className="dual-pane-textarea"
-                    value={col2}
-                    onChange={(e) => handleCol2Change(e.target.value)}
-                    onKeyDown={handleKeyDown(setCol2, true)}
-                    placeholder={placeholderCol2}
-                    spellCheck={false}
-                  />
-                ) : (
-                  <div className="dual-pane-preview-container">
-                    {col2.trim() ? (
-                      <MarkdownViewer source={col2} />
-                    ) : (
-                      <div className="dual-preview-empty">Nothing written in {labelCol2} yet.</div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </Panel>
+                  </Panel>
+                </React.Fragment>
+              );
+            })}
           </Group>
         )}
       </div>

@@ -224,10 +224,9 @@ function hashString(str: string): number {
  * Get distinct color palette and inline styles for a category based on slug or name.
  */
 export function getCategoryTheme(slugOrName?: string | null): CategoryTheme {
-  const key = (slugOrName || "coding").trim().toLowerCase().replace(/\s+/g, "_");
-  
-  if (PRESET_THEMES[key]) {
-    const preset = PRESET_THEMES[key];
+  const key = (slugOrName || "coding").trim().toLowerCase().replace(/[\s-]+/g, "_");
+  const preset = PRESET_THEMES[key];
+  if (preset) {
     return {
       ...preset,
       style: {
@@ -238,22 +237,7 @@ export function getCategoryTheme(slugOrName?: string | null): CategoryTheme {
     };
   }
 
-  // Also check if any preset key matches a substring
-  for (const presetKey of Object.keys(PRESET_THEMES)) {
-    if (key.includes(presetKey)) {
-      const preset = PRESET_THEMES[presetKey];
-      return {
-        ...preset,
-        style: {
-          color: preset.color,
-          backgroundColor: preset.bg,
-          borderColor: preset.border,
-        },
-      };
-    }
-  }
-
-  // Deterministic fallback based on string hash
+  // Deterministic fallback based on string hash for custom user categories
   const index = hashString(key) % DYNAMIC_PALETTE.length;
   const picked = DYNAMIC_PALETTE[index];
   return {

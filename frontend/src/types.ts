@@ -136,7 +136,13 @@ export interface BackupPayload {
 export const isProblemCategory = (slug?: string | null): boolean => {
   if (!slug) return true;
   const s = slug.toLowerCase();
-  return s === "coding" || s.startsWith("system_design") || s.startsWith("system-design");
+  return (
+    s === "coding" ||
+    s.startsWith("coding_") ||
+    s.startsWith("coding-") ||
+    s.startsWith("system_design") ||
+    s.startsWith("system-design")
+  );
 };
 
 export interface Subtext {
@@ -179,27 +185,20 @@ export interface SubtextUpdatePayload {
   is_difficult?: boolean;
 }
 
+const SUBTEXT_CATEGORY_PREFIXES = [
+  "subtext",
+  "idiom",
+  "phrase",
+  "vocab",
+  "cinema",
+  "dialogue",
+  "conversation",
+  "news",
+];
+
 export const isSubtextCategory = (slug?: string | null): boolean => {
   if (!slug) return false;
   const s = slug.toLowerCase();
-  return (
-    s === "subtext" ||
-    s.startsWith("subtext") ||
-    s === "idiom" ||
-    s.startsWith("idiom") ||
-    s === "phrase" ||
-    s.startsWith("phrase") ||
-    s === "vocabulary" ||
-    s === "vocab" ||
-    s.startsWith("vocab") ||
-    s === "cinema" ||
-    s.startsWith("cinema") ||
-    s === "dialogue" ||
-    s.startsWith("dialogue") ||
-    s === "conversation" ||
-    s.startsWith("conversation") ||
-    s === "news" ||
-    s.startsWith("news")
-  );
+  return SUBTEXT_CATEGORY_PREFIXES.some((prefix) => s.startsWith(prefix));
 };
 

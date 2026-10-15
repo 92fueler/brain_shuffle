@@ -218,7 +218,7 @@ export const SubtextFlashcard: React.FC<SubtextFlashcardProps> = ({
           </button>
           <button
             type="button"
-            className="cadence-btn cadence-intra"
+            className="cadence-btn cadence-intraweek"
             onClick={() => handleRatingClick("intra_week")}
             disabled={isBusy}
             title="Consolidate mid-week (rolling 2–3 days)"

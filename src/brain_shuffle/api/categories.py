@@ -5,6 +5,7 @@ from sqlmodel import Session, func, select
 from brain_shuffle.db import get_session
 from brain_shuffle.models.category import Category
 from brain_shuffle.models.problem import Problem
+from brain_shuffle.models.subtext import Subtext
 from brain_shuffle.schemas.category import CategoryCreate, CategoryRead, CategoryUpdate
 
 router = APIRouter(prefix="/categories", tags=["categories"])
@@ -101,14 +102,18 @@ def delete_category(
     if not category:
         raise HTTPException(status_code=404, detail="Category not found")
 
-    # Safety constraint: prevent deleting category with attached problems
+    # Safety constraint: prevent deleting category with attached problems or subtexts
     problem_count = session.exec(
         select(func.count()).select_from(Problem).where(Problem.category_id == category_id)
     ).one()
-    if problem_count > 0:
+    subtext_count = session.exec(
+        select(func.count()).select_from(Subtext).where(Subtext.category_id == category_id)
+    ).one()
+    total_count = problem_count + subtext_count
+    if total_count > 0:
         raise HTTPException(
             status_code=400,
-            detail=f"Cannot delete category '{category.name}' because it contains {problem_count} problem(s). Please reassign or delete these problems first.",
+            detail=f"Cannot delete category '{category.name}' because it contains {total_count} entry/entries. Please reassign or delete them first.",
         )
 
     session.delete(category)

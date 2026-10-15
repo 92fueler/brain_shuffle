@@ -523,81 +523,38 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
   const [optimisticStars, setOptimisticStars] = useState<Record<string, boolean>>({});
   const [optimisticDifficult, setOptimisticDifficult] = useState<Record<string, boolean>>({});
 
-  const isProblemStarred = (problem: Problem) =>
-    problem.id in optimisticStars ? optimisticStars[problem.id] : Boolean(problem.is_starred);
+  const isEntryStarred = (entry: { id: string; is_starred?: boolean }) =>
+    entry.id in optimisticStars ? optimisticStars[entry.id] : Boolean(entry.is_starred);
 
-  const isSubtextStarred = (subtext: Subtext) =>
-    subtext.id in optimisticStars ? optimisticStars[subtext.id] : Boolean(subtext.is_starred);
+  const isEntryDifficult = (entry: { id: string; is_difficult?: boolean }) =>
+    entry.id in optimisticDifficult ? optimisticDifficult[entry.id] : Boolean(entry.is_difficult);
 
-  const isProblemDifficult = (problem: Problem) =>
-    problem.id in optimisticDifficult ? optimisticDifficult[problem.id] : Boolean(problem.is_difficult);
-
-  const isSubtextDifficult = (subtext: Subtext) =>
-    subtext.id in optimisticDifficult ? optimisticDifficult[subtext.id] : Boolean(subtext.is_difficult);
-
-  const handleToggleStar = async (problem: Problem, e: React.MouseEvent) => {
+  const toggleEntryMarker = async (
+    entry: { id: string; is_starred?: boolean; is_difficult?: boolean },
+    field: "is_starred" | "is_difficult",
+    isSubtext: boolean,
+    e: React.MouseEvent
+  ) => {
     e.stopPropagation();
-    const nextVal = !isProblemStarred(problem);
-    setOptimisticStars((prev) => ({ ...prev, [problem.id]: nextVal }));
+    const isStar = field === "is_starred";
+    const currentVal = isStar ? isEntryStarred(entry) : isEntryDifficult(entry);
+    const nextVal = !currentVal;
+    const setOptimistic = isStar ? setOptimisticStars : setOptimisticDifficult;
+
+    setOptimistic((prev) => ({ ...prev, [entry.id]: nextVal }));
     try {
-      await updateProblem(problem.id, { is_starred: nextVal });
+      if (isSubtext) {
+        await updateSubtext(entry.id, { [field]: nextVal });
+      } else {
+        await updateProblem(entry.id, { [field]: nextVal });
+      }
       await onRefresh();
     } catch (err) {
-      console.error("Failed to toggle important marker", err);
-      setOptimisticStars((prev) => {
+      console.error(`Failed to toggle ${field}`, err);
+    } finally {
+      setOptimistic((prev) => {
         const copy = { ...prev };
-        delete copy[problem.id];
-        return copy;
-      });
-    }
-  };
-
-  const handleToggleSubtextStar = async (subtext: Subtext, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const nextVal = !isSubtextStarred(subtext);
-    setOptimisticStars((prev) => ({ ...prev, [subtext.id]: nextVal }));
-    try {
-      await updateSubtext(subtext.id, { is_starred: nextVal });
-      await onRefresh();
-    } catch (err) {
-      console.error("Failed to toggle subtext important marker", err);
-      setOptimisticStars((prev) => {
-        const copy = { ...prev };
-        delete copy[subtext.id];
-        return copy;
-      });
-    }
-  };
-
-  const handleToggleDifficult = async (problem: Problem, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const nextVal = !isProblemDifficult(problem);
-    setOptimisticDifficult((prev) => ({ ...prev, [problem.id]: nextVal }));
-    try {
-      await updateProblem(problem.id, { is_difficult: nextVal });
-      await onRefresh();
-    } catch (err) {
-      console.error("Failed to toggle difficult marker", err);
-      setOptimisticDifficult((prev) => {
-        const copy = { ...prev };
-        delete copy[problem.id];
-        return copy;
-      });
-    }
-  };
-
-  const handleToggleSubtextDifficult = async (subtext: Subtext, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const nextVal = !isSubtextDifficult(subtext);
-    setOptimisticDifficult((prev) => ({ ...prev, [subtext.id]: nextVal }));
-    try {
-      await updateSubtext(subtext.id, { is_difficult: nextVal });
-      await onRefresh();
-    } catch (err) {
-      console.error("Failed to toggle subtext difficult marker", err);
-      setOptimisticDifficult((prev) => {
-        const copy = { ...prev };
-        delete copy[subtext.id];
+        delete copy[entry.id];
         return copy;
       });
     }
@@ -654,7 +611,7 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
       });
 
   const filteredProblems = baseCategoryProblems
-    .filter((p) => (!showStarredOnly || isProblemStarred(p)) && (!showDifficultOnly || isProblemDifficult(p)))
+    .filter((p) => (!showStarredOnly || isEntryStarred(p)) && (!showDifficultOnly || isEntryDifficult(p)))
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
   const baseCategorySubtexts = !isSubtextSelected
@@ -672,16 +629,16 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
       });
 
   const filteredSubtexts = baseCategorySubtexts
-    .filter((s) => (!showStarredOnly || isSubtextStarred(s)) && (!showDifficultOnly || isSubtextDifficult(s)))
+    .filter((s) => (!showStarredOnly || isEntryStarred(s)) && (!showDifficultOnly || isEntryDifficult(s)))
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
   const starredCount = isSubtextSelected
-    ? baseCategorySubtexts.filter((s) => isSubtextStarred(s)).length
-    : baseCategoryProblems.filter((p) => isProblemStarred(p)).length;
+    ? baseCategorySubtexts.filter(isEntryStarred).length
+    : baseCategoryProblems.filter(isEntryStarred).length;
 
   const difficultCount = isSubtextSelected
-    ? baseCategorySubtexts.filter((s) => isSubtextDifficult(s)).length
-    : baseCategoryProblems.filter((p) => isProblemDifficult(p)).length;
+    ? baseCategorySubtexts.filter(isEntryDifficult).length
+    : baseCategoryProblems.filter(isEntryDifficult).length;
 
   const isAllVisibleSelected =
     filteredProblems.length > 0 && filteredProblems.every((p) => selectedProblemIds.has(p.id));
@@ -762,6 +719,57 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
       console.error("Failed to update cadence for selected problems", err);
     }
   };
+
+  const renderRowMarkers = (
+    entry: { id: string; is_starred?: boolean; is_difficult?: boolean },
+    isSubtext: boolean,
+    isStarred: boolean,
+    isDifficult: boolean
+  ) => (
+    <div className="problem-markers-group">
+      <button
+        type="button"
+        className={`problem-star-btn ${isStarred ? "starred" : ""}`}
+        onClick={(e) => toggleEntryMarker(entry, "is_starred", isSubtext, e)}
+        title={isStarred ? "Unmark as important" : "Mark as important"}
+      >
+        <Star size={14} fill={isStarred ? "currentColor" : "none"} />
+      </button>
+      <button
+        type="button"
+        className={`problem-difficult-btn ${isDifficult ? "difficult" : ""}`}
+        onClick={(e) => toggleEntryMarker(entry, "is_difficult", isSubtext, e)}
+        title={isDifficult ? "Unmark as very difficult" : "Mark as very difficult"}
+      >
+        <Circle size={12.5} fill={isDifficult ? "currentColor" : "none"} />
+      </button>
+    </div>
+  );
+
+  const renderCategorySelect = (value: string, onChange: (val: string) => void) => (
+    <div className="form-group">
+      <label>Category:</label>
+      <select value={value} onChange={(e) => onChange(e.target.value)} required>
+        {categories.map((c) => (
+          <option key={c.id} value={c.id}>
+            {c.name}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+
+  const renderCadenceSelect = (value: string, onChange: (val: string) => void) => (
+    <div className="form-group">
+      <label>Review Cadence & Priority:</label>
+      <select value={value} onChange={(e) => onChange(e.target.value)}>
+        <option value="daily">🔄 Drill Soon (Intra-day review ~4h)</option>
+        <option value="intra_week">📅 Mid-Week (Consolidation 2–3d)</option>
+        <option value="weekly">🗓️ Next Week (Standard 7d)</option>
+        <option value="monthly">⏭️ Skip / Park (Parked for 21d)</option>
+      </select>
+    </div>
+  );
 
   return (
     <div className="problem-manager">
@@ -976,8 +984,8 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
             {filteredProblems.map((problem) => {
             const isExpanded = expandedId === problem.id;
             const isSelected = selectedProblemIds.has(problem.id);
-            const isStarred = isProblemStarred(problem);
-            const isDifficult = isProblemDifficult(problem);
+            const isStarred = isEntryStarred(problem);
+            const isDifficult = isEntryDifficult(problem);
             const catName = getCategoryName(problem.category_id);
             const catSlug = getCategorySlug(problem.category_id);
             const catTheme = getCategoryTheme(catSlug || catName);
@@ -1006,24 +1014,7 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
                     >
                       {formattedCatName}
                     </span>
-                    <div className="problem-markers-group">
-                      <button
-                        type="button"
-                        className={`problem-star-btn ${isStarred ? "starred" : ""}`}
-                        onClick={(e) => handleToggleStar(problem, e)}
-                        title={isStarred ? "Unmark as important" : "Mark as important"}
-                      >
-                        <Star size={14} fill={isStarred ? "currentColor" : "none"} />
-                      </button>
-                      <button
-                        type="button"
-                        className={`problem-difficult-btn ${isDifficult ? "difficult" : ""}`}
-                        onClick={(e) => handleToggleDifficult(problem, e)}
-                        title={isDifficult ? "Unmark as very difficult" : "Mark as very difficult"}
-                      >
-                        <Circle size={12.5} fill={isDifficult ? "currentColor" : "none"} />
-                      </button>
-                    </div>
+                    {renderRowMarkers(problem, false, isStarred, isDifficult)}
                     <h3 className="problem-title-text">{problem.title}</h3>
                   </div>
                   <div className="problem-row-actions">
@@ -1081,8 +1072,8 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
 
           {filteredSubtexts.map((subtext) => {
             const isExpanded = expandedSubtextId === subtext.id;
-            const isStarred = isSubtextStarred(subtext);
-            const isDifficult = isSubtextDifficult(subtext);
+            const isStarred = isEntryStarred(subtext);
+            const isDifficult = isEntryDifficult(subtext);
             const catName = getCategoryName(subtext.category_id);
             const catSlug = getCategorySlug(subtext.category_id);
             const catTheme = getCategoryTheme(catSlug || catName);
@@ -1103,47 +1094,23 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
                     >
                       {formattedCatName}
                     </span>
-                    <div className="problem-markers-group">
-                      <button
-                        type="button"
-                        className={`problem-star-btn ${isStarred ? "starred" : ""}`}
-                        onClick={(e) => handleToggleSubtextStar(subtext, e)}
-                        title={isStarred ? "Unmark as important" : "Mark as important"}
-                      >
-                        <Star size={14} fill={isStarred ? "currentColor" : "none"} />
-                      </button>
-                      <button
-                        type="button"
-                        className={`problem-difficult-btn ${isDifficult ? "difficult" : ""}`}
-                        onClick={(e) => handleToggleSubtextDifficult(subtext, e)}
-                        title={isDifficult ? "Unmark as very difficult" : "Mark as very difficult"}
-                      >
-                        <Circle size={12.5} fill={isDifficult ? "currentColor" : "none"} />
-                      </button>
-                    </div>
-                    <span className="subtext-badge-pill" style={{ marginRight: "6px" }}>
-                      ✨ Subtext
-                    </span>
+                    {renderRowMarkers(subtext, true, isStarred, isDifficult)}
                     <h3 className="problem-title-text">{subtext.title}</h3>
                   </div>
 
                   <div className="problem-row-actions">
-                    <span className="cadence-indicator-tag">
-                      {subtext.cadence ? subtext.cadence.replace("_", "-") : "weekly"}
-                    </span>
-
                     <button
                       type="button"
-                      className="row-action-btn edit-icon-btn"
+                      className="icon-edit-btn"
                       onClick={(e) => handleOpenEditSubtext(subtext, e)}
                       title="Edit subtext entry"
                     >
-                      <Pencil size={13.5} />
+                      <Pencil size={13} />
                     </button>
 
                     <button
                       type="button"
-                      className="row-action-btn delete-icon-btn"
+                      className="icon-delete-btn"
                       onClick={async (e) => {
                         e.stopPropagation();
                         if (confirm(`Delete subtext "${subtext.title}"?`)) {
@@ -1157,17 +1124,9 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
                       <Trash2 size={13.5} />
                     </button>
 
-                    <button
-                      type="button"
-                      className="row-action-btn expand-toggle-btn"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setExpandedSubtextId(isExpanded ? null : subtext.id);
-                      }}
-                      title={isExpanded ? "Collapse preview" : "Expand preview"}
-                    >
-                      {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                    </button>
+                    <span className="expand-indicator">
+                      {isExpanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+                    </span>
                   </div>
                 </div>
 
@@ -1229,20 +1188,7 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
                   /* Subtext Mode */
                   <>
                     <div className="form-row">
-                      <div className="form-group">
-                        <label>Category:</label>
-                        <select
-                          value={activeFormCatId}
-                          onChange={(e) => handleFormCatChange(e.target.value)}
-                          required
-                        >
-                          {categories.map((c) => (
-                            <option key={c.id} value={c.id}>
-                              {c.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                      {renderCategorySelect(activeFormCatId, handleFormCatChange)}
 
                       <div className="form-group">
                         <label>Title / Focal Phrase or Headline:</label>
@@ -1302,20 +1248,7 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
                   /* Note Mode */
                   <>
                     <div className="form-row">
-                      <div className="form-group">
-                        <label>Category:</label>
-                        <select
-                          value={activeFormCatId}
-                          onChange={(e) => handleFormCatChange(e.target.value)}
-                          required
-                        >
-                          {categories.map((c) => (
-                            <option key={c.id} value={c.id}>
-                              {c.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                      {renderCategorySelect(activeFormCatId, handleFormCatChange)}
 
                       <div className="form-group">
                         <label>Recall Prompt / Concept Question:</label>
@@ -1349,20 +1282,7 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
                   /* Problem Mode */
                   <>
                     <div className="form-row">
-                      <div className="form-group">
-                        <label>Category:</label>
-                        <select
-                          value={activeFormCatId}
-                          onChange={(e) => handleFormCatChange(e.target.value)}
-                          required
-                        >
-                          {categories.map((c) => (
-                            <option key={c.id} value={c.id}>
-                              {c.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                      {renderCategorySelect(activeFormCatId, handleFormCatChange)}
 
                       <div className="form-group">
                         <label>Problem Title:</label>
@@ -1497,33 +1417,8 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
                   /* Edit Subtext Mode */
                   <>
                     <div className="form-row">
-                      <div className="form-group">
-                        <label>Category:</label>
-                        <select
-                          value={editCatId}
-                          onChange={(e) => handleEditCatChange(e.target.value)}
-                          required
-                        >
-                          {categories.map((c) => (
-                            <option key={c.id} value={c.id}>
-                              {c.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="form-group">
-                        <label>Review Cadence & Priority:</label>
-                        <select
-                          value={editCadence}
-                          onChange={(e) => setEditCadence(e.target.value)}
-                        >
-                          <option value="daily">🔄 Drill Soon (Intra-day review ~4h)</option>
-                          <option value="intra_week">📅 Mid-Week (Consolidation 2–3d)</option>
-                          <option value="weekly">🗓️ Next Week (Standard 7d)</option>
-                          <option value="monthly">⏭️ Skip / Park (Parked for 21d)</option>
-                        </select>
-                      </div>
+                      {renderCategorySelect(editCatId, handleEditCatChange)}
+                      {renderCadenceSelect(editCadence, setEditCadence)}
                     </div>
 
                     <div className="form-group">
@@ -1576,33 +1471,8 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
                   /* Edit Note Mode */
                   <>
                     <div className="form-row">
-                      <div className="form-group">
-                        <label>Category:</label>
-                        <select
-                          value={editCatId}
-                          onChange={(e) => handleEditCatChange(e.target.value)}
-                          required
-                        >
-                          {categories.map((c) => (
-                            <option key={c.id} value={c.id}>
-                              {c.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="form-group">
-                        <label>Review Cadence & Priority:</label>
-                        <select
-                          value={editCadence}
-                          onChange={(e) => setEditCadence(e.target.value)}
-                        >
-                          <option value="daily">🔄 Drill Soon (Intra-day review ~4h)</option>
-                          <option value="intra_week">📅 Mid-Week (Consolidation 2–3d)</option>
-                          <option value="weekly">🗓️ Next Week (Standard 7d)</option>
-                          <option value="monthly">⏭️ Skip / Park (Parked for 21d)</option>
-                        </select>
-                      </div>
+                      {renderCategorySelect(editCatId, handleEditCatChange)}
+                      {renderCadenceSelect(editCadence, setEditCadence)}
                     </div>
 
                     <div className="form-group">
@@ -1635,20 +1505,7 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
                   /* Edit Problem Mode */
                   <>
                     <div className="form-row">
-                      <div className="form-group">
-                        <label>Category:</label>
-                        <select
-                          value={editCatId}
-                          onChange={(e) => handleEditCatChange(e.target.value)}
-                          required
-                        >
-                          {categories.map((c) => (
-                            <option key={c.id} value={c.id}>
-                              {c.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                      {renderCategorySelect(editCatId, handleEditCatChange)}
 
                       <div className="form-group">
                         <label>Problem Title:</label>
@@ -1684,18 +1541,7 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
                       </div>
                     </div>
 
-                    <div className="form-group">
-                      <label>Review Cadence & Priority:</label>
-                      <select
-                        value={editCadence}
-                        onChange={(e) => setEditCadence(e.target.value)}
-                      >
-                        <option value="daily">🔄 Drill Soon (Intra-day review ~4h)</option>
-                        <option value="intra_week">📅 Mid-Week (Consolidation 2–3d)</option>
-                        <option value="weekly">🗓️ Next Week (Standard 7d)</option>
-                        <option value="monthly">⏭️ Skip / Park (Parked for 21d)</option>
-                      </select>
-                    </div>
+                    {renderCadenceSelect(editCadence, setEditCadence)}
 
                     <div className="form-group">
                       <label>Hints (Problem Prompt & Constraints):</label>

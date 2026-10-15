@@ -11,7 +11,7 @@ from brain_shuffle.schemas.subtext import (
     SubtextReviewSubmission,
     SubtextUpdate,
 )
-from brain_shuffle.services.shuffle_engine import resolve_cadence_schedule
+from brain_shuffle.services.shuffle_engine import apply_review_action, resolve_cadence_schedule
 
 router = APIRouter(prefix="/subtexts", tags=["subtexts"])
 
@@ -163,37 +163,7 @@ def submit_subtext_review(
         raise HTTPException(status_code=404, detail="Subtext not found")
 
     now = datetime.now(timezone.utc)
-    action = review.rating.strip().lower()
-
-    if action in ("drill_soon", "again"):
-        subtext.cadence = "daily"
-        subtext.retention_score = max(0.5, subtext.retention_score * 0.8)
-        next_interval_hours = 4.0
-        canonical_action = "drill_soon"
-    elif action in ("intra_week", "hard"):
-        subtext.cadence = "intra_week"
-        subtext.retention_score = min(2.5, max(1.0, subtext.retention_score * 1.05))
-        next_interval_hours = 60.0
-        canonical_action = "intra_week"
-    elif action in ("weekly", "good"):
-        subtext.cadence = "weekly"
-        subtext.retention_score = min(3.5, subtext.retention_score * 1.20)
-        next_interval_hours = 168.0
-        canonical_action = "weekly"
-    elif action in ("skip_park", "easy"):
-        subtext.cadence = "monthly"
-        subtext.retention_score = min(4.0, subtext.retention_score * 1.10)
-        next_interval_hours = 504.0
-        canonical_action = "skip_park"
-    else:
-        subtext.cadence = "weekly"
-        next_interval_hours = 168.0
-        canonical_action = action
-
-    subtext.review_count += 1
-    subtext.last_reviewed_at = now
-    subtext.next_review_due = now + timedelta(hours=next_interval_hours)
-    subtext.updated_at = now
+    canonical_action = apply_review_action(subtext, review.rating, now)
 
     log = SubtextReviewLog(
         subtext_id=subtext.id,

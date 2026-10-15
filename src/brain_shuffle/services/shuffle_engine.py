@@ -37,6 +37,42 @@ def resolve_cadence_schedule(
     return canonical_cadence, next_due
 
 
+def apply_review_action(entity: object, rating: str, now: datetime) -> str:
+    """Updates entity cadence, retention_score, review_count, and timestamps based on rating intent."""
+    action = rating.strip().lower()
+
+    if action in ("drill_soon", "again"):
+        entity.cadence = "daily"  # type: ignore[attr-defined]
+        entity.retention_score = max(0.5, entity.retention_score * 0.8)  # type: ignore[attr-defined]
+        next_interval_hours = 4.0
+        canonical_action = "drill_soon"
+    elif action in ("intra_week", "hard"):
+        entity.cadence = "intra_week"  # type: ignore[attr-defined]
+        entity.retention_score = min(2.5, max(1.0, entity.retention_score * 1.05))  # type: ignore[attr-defined]
+        next_interval_hours = 60.0
+        canonical_action = "intra_week"
+    elif action in ("weekly", "good"):
+        entity.cadence = "weekly"  # type: ignore[attr-defined]
+        entity.retention_score = min(3.5, entity.retention_score * 1.20)  # type: ignore[attr-defined]
+        next_interval_hours = 168.0
+        canonical_action = "weekly"
+    elif action in ("skip_park", "easy"):
+        entity.cadence = "monthly"  # type: ignore[attr-defined]
+        entity.retention_score = min(4.0, entity.retention_score * 1.10)  # type: ignore[attr-defined]
+        next_interval_hours = 504.0
+        canonical_action = "skip_park"
+    else:
+        entity.cadence = "weekly"  # type: ignore[attr-defined]
+        next_interval_hours = 168.0
+        canonical_action = action
+
+    entity.review_count += 1  # type: ignore[attr-defined]
+    entity.last_reviewed_at = now  # type: ignore[attr-defined]
+    entity.next_review_due = now + timedelta(hours=next_interval_hours)  # type: ignore[attr-defined]
+    entity.updated_at = now  # type: ignore[attr-defined]
+    return canonical_action
+
+
 class ShuffleEngine:
     def __init__(self, session: Session):
         self.session = session
@@ -335,38 +371,7 @@ class ShuffleEngine:
     ) -> Problem:
         """Update retention score, rolling cadence, and log review attempt based on intent."""
         now = datetime.now(timezone.utc)
-        action = rating.strip().lower()
-
-        # Intent-driven rolling action mapping
-        if action in ("drill_soon", "again"):
-            problem.cadence = "daily"
-            problem.retention_score = max(0.5, problem.retention_score * 0.8)
-            next_interval_hours = 4.0  # Rolling 4 hours (intra-day)
-            canonical_action = "drill_soon"
-        elif action in ("intra_week", "hard"):
-            problem.cadence = "intra_week"
-            problem.retention_score = min(2.5, max(1.0, problem.retention_score * 1.05))
-            next_interval_hours = 60.0  # Rolling 2.5 days / 60h (intra-week consolidation window)
-            canonical_action = "intra_week"
-        elif action in ("weekly", "good"):
-            problem.cadence = "weekly"
-            problem.retention_score = min(3.5, problem.retention_score * 1.20)
-            next_interval_hours = 168.0  # Rolling 7 days (weekly)
-            canonical_action = "weekly"
-        elif action in ("skip_park", "easy"):
-            problem.cadence = "monthly"
-            problem.retention_score = min(4.0, problem.retention_score * 1.10)
-            next_interval_hours = 504.0  # Rolling 21 days (park / deferred)
-            canonical_action = "skip_park"
-        else:
-            problem.cadence = "weekly"
-            next_interval_hours = 168.0
-            canonical_action = action
-
-        problem.review_count += 1
-        problem.last_reviewed_at = now
-        problem.next_review_due = now + timedelta(hours=next_interval_hours)
-        problem.updated_at = now
+        canonical_action = apply_review_action(problem, rating, now)
 
         log = ReviewLog(
             problem_id=problem.id,
