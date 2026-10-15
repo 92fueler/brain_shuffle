@@ -10,6 +10,9 @@ import {
   Eye,
   Edit3,
   ChevronDown,
+  Bold,
+  Italic,
+  Palette,
 } from "lucide-react";
 import { MarkdownViewer } from "./MarkdownViewer";
 import {
@@ -34,7 +37,7 @@ interface DualNotepadProps {
   allowSplit?: boolean;
 }
 
-export interface CodeLanguage {
+interface CodeLanguage {
   id: string;
   label: string;
 }
@@ -60,6 +63,23 @@ const SHORT_LANG_LABELS: Record<string, string> = {
   bash: "sh",
   text: "txt",
 };
+
+interface NoteColorOption {
+  id: string;
+  name: string;
+  hex: string;
+}
+
+const NOTE_COLOR_OPTIONS: NoteColorOption[] = [
+  { id: "red", name: "Red / Alert", hex: "#f87171" },
+  { id: "orange", name: "Orange / Gotcha", hex: "#fb923c" },
+  { id: "amber", name: "Yellow / Attention", hex: "#fbbf24" },
+  { id: "green", name: "Green / Key Idea", hex: "#4ade80" },
+  { id: "cyan", name: "Cyan / Param", hex: "#22d3ee" },
+  { id: "blue", name: "Blue / Concept", hex: "#60a5fa" },
+  { id: "purple", name: "Purple / Note", hex: "#c084fc" },
+  { id: "pink", name: "Pink / Accent", hex: "#f472b6" },
+];
 
 export const DualNotepad: React.FC<DualNotepadProps> = ({
   value,
@@ -88,16 +108,23 @@ export const DualNotepad: React.FC<DualNotepadProps> = ({
   const [viewModeCol1, setViewModeCol1] = useState<ViewMode>("edit");
   const [viewModeCol2, setViewModeCol2] = useState<ViewMode>("edit");
 
-  // Code language selection state
+  // Code language and color selection states
   const [activeLang, setActiveLang] = useState<string>("python");
   const [openLangMenu, setOpenLangMenu] = useState<1 | 2 | "single" | null>(null);
+  const [openColorMenu, setOpenColorMenu] = useState<1 | 2 | "single" | null>(null);
 
-  // Close language dropdown on outside click or Escape key
+  // Close dropdowns on outside click or Escape key
   useEffect(() => {
-    if (openLangMenu === null) return;
-    const handleClickOutside = () => setOpenLangMenu(null);
+    if (openLangMenu === null && openColorMenu === null) return;
+    const handleClickOutside = () => {
+      setOpenLangMenu(null);
+      setOpenColorMenu(null);
+    };
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpenLangMenu(null);
+      if (e.key === "Escape") {
+        setOpenLangMenu(null);
+        setOpenColorMenu(null);
+      }
     };
     window.addEventListener("click", handleClickOutside);
     window.addEventListener("keydown", handleKeyDown);
@@ -105,7 +132,7 @@ export const DualNotepad: React.FC<DualNotepadProps> = ({
       window.removeEventListener("click", handleClickOutside);
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [openLangMenu]);
+  }, [openLangMenu, openColorMenu]);
 
   // Keep track of external value changes
   const lastSyncedValue = useRef<string>(value);
@@ -160,11 +187,278 @@ export const DualNotepad: React.FC<DualNotepadProps> = ({
     }
   };
 
+  // Switch column to edit mode if currently in preview
+  const ensureEditMode = (targetCol: 1 | 2) => {
+    if (!isSplit && viewModeSingle !== "edit") {
+      setViewModeSingle("edit");
+    } else if (isSplit) {
+      if (targetCol === 1 && viewModeCol1 !== "edit") setViewModeCol1("edit");
+      if (targetCol === 2 && viewModeCol2 !== "edit") setViewModeCol2("edit");
+    }
+  };
+
+  // Wraps selected text in **bold** or toggles existing bold
+  const wrapOrInsertBold = (targetCol: 1 | 2) => {
+    ensureEditMode(targetCol);
+
+    const isCol1 = targetCol === 1;
+    const currentVal = isCol1 ? col1 : col2;
+    const textarea = isCol1 ? textarea1Ref.current : textarea2Ref.current;
+
+    let nextVal = "";
+    let cursorStart = 0;
+    let cursorEnd = 0;
+
+    if (textarea) {
+      const { selectionStart, selectionEnd } = textarea;
+      const selectedText = currentVal.slice(selectionStart, selectionEnd);
+      const before = currentVal.slice(0, selectionStart);
+      const after = currentVal.slice(selectionEnd);
+
+      if (selectedText.length > 0) {
+        if (
+          selectedText.startsWith("**") &&
+          selectedText.endsWith("**") &&
+          selectedText.length >= 4
+        ) {
+          const unwrapped = selectedText.slice(2, -2);
+          nextVal = before + unwrapped + after;
+          cursorStart = selectionStart;
+          cursorEnd = selectionStart + unwrapped.length;
+        } else if (before.endsWith("**") && after.startsWith("**")) {
+          nextVal = before.slice(0, -2) + selectedText + after.slice(2);
+          cursorStart = selectionStart - 2;
+          cursorEnd = cursorStart + selectedText.length;
+        } else {
+          const wrapped = `**${selectedText}**`;
+          nextVal = before + wrapped + after;
+          cursorStart = selectionStart;
+          cursorEnd = selectionStart + wrapped.length;
+        }
+      } else {
+        const placeholder = "**bold**";
+        nextVal = before + placeholder + after;
+        cursorStart = selectionStart + 2;
+        cursorEnd = cursorStart + 4;
+      }
+    } else {
+      nextVal = currentVal + (currentVal ? " " : "") + "**bold**";
+      cursorStart = nextVal.length - 6;
+      cursorEnd = nextVal.length - 2;
+    }
+
+    if (isCol1) {
+      setCol1(nextVal);
+      emitChange(nextVal, col2, isSplit);
+    } else {
+      setCol2(nextVal);
+      emitChange(col1, nextVal, isSplit);
+    }
+
+    if (textarea) {
+      requestAnimationFrame(() => {
+        textarea.focus();
+        textarea.setSelectionRange(cursorStart, cursorEnd);
+      });
+    }
+  };
+
+  // Wraps selected text in *italic* or toggles existing italic
+  const wrapOrInsertItalic = (targetCol: 1 | 2) => {
+    ensureEditMode(targetCol);
+
+    const isCol1 = targetCol === 1;
+    const currentVal = isCol1 ? col1 : col2;
+    const textarea = isCol1 ? textarea1Ref.current : textarea2Ref.current;
+
+    let nextVal = "";
+    let cursorStart = 0;
+    let cursorEnd = 0;
+
+    if (textarea) {
+      const { selectionStart, selectionEnd } = textarea;
+      const selectedText = currentVal.slice(selectionStart, selectionEnd);
+      const before = currentVal.slice(0, selectionStart);
+      const after = currentVal.slice(selectionEnd);
+
+      if (selectedText.length > 0) {
+        if (
+          selectedText.startsWith("*") &&
+          selectedText.endsWith("*") &&
+          selectedText.length >= 2 &&
+          !selectedText.startsWith("**")
+        ) {
+          const unwrapped = selectedText.slice(1, -1);
+          nextVal = before + unwrapped + after;
+          cursorStart = selectionStart;
+          cursorEnd = selectionStart + unwrapped.length;
+        } else if (
+          before.endsWith("*") &&
+          !before.endsWith("**") &&
+          after.startsWith("*") &&
+          !after.startsWith("**")
+        ) {
+          nextVal = before.slice(0, -1) + selectedText + after.slice(1);
+          cursorStart = selectionStart - 1;
+          cursorEnd = cursorStart + selectedText.length;
+        } else {
+          const wrapped = `*${selectedText}*`;
+          nextVal = before + wrapped + after;
+          cursorStart = selectionStart;
+          cursorEnd = selectionStart + wrapped.length;
+        }
+      } else {
+        const placeholder = "*italic*";
+        nextVal = before + placeholder + after;
+        cursorStart = selectionStart + 1;
+        cursorEnd = cursorStart + 6;
+      }
+    } else {
+      nextVal = currentVal + (currentVal ? " " : "") + "*italic*";
+      cursorStart = nextVal.length - 7;
+      cursorEnd = nextVal.length - 1;
+    }
+
+    if (isCol1) {
+      setCol1(nextVal);
+      emitChange(nextVal, col2, isSplit);
+    } else {
+      setCol2(nextVal);
+      emitChange(col1, nextVal, isSplit);
+    }
+
+    if (textarea) {
+      requestAnimationFrame(() => {
+        textarea.focus();
+        textarea.setSelectionRange(cursorStart, cursorEnd);
+      });
+    }
+  };
+
+  // Wraps selected text in <span style="color: ...">...</span> or updates/clears existing color
+  const wrapOrInsertColor = (targetCol: 1 | 2, colorHex: string) => {
+    ensureEditMode(targetCol);
+
+    const isCol1 = targetCol === 1;
+    const currentVal = isCol1 ? col1 : col2;
+    const textarea = isCol1 ? textarea1Ref.current : textarea2Ref.current;
+
+    let nextVal = "";
+    let cursorStart = 0;
+    let cursorEnd = 0;
+
+    if (textarea) {
+      const { selectionStart, selectionEnd } = textarea;
+      const selectedText = currentVal.slice(selectionStart, selectionEnd);
+      const before = currentVal.slice(0, selectionStart);
+      const after = currentVal.slice(selectionEnd);
+
+      if (selectedText.length > 0) {
+        if (!colorHex) {
+          // Clearing color
+          const spanOuterRegex = /^<span style="color:\s*[^"]*">([\s\S]*)<\/span>$/i;
+          if (spanOuterRegex.test(selectedText)) {
+            const stripped = selectedText.replace(spanOuterRegex, "$1");
+            nextVal = before + stripped + after;
+            cursorStart = selectionStart;
+            cursorEnd = selectionStart + stripped.length;
+          } else if (/<span style="color:\s*[^"]*">/i.test(selectedText)) {
+            const stripped = selectedText.replace(/<span style="color:\s*[^"]*">([\s\S]*?)<\/span>/gi, "$1");
+            nextVal = before + stripped + after;
+            cursorStart = selectionStart;
+            cursorEnd = selectionStart + stripped.length;
+          } else {
+            const openTagMatch = before.match(/<span style="color:\s*[^"]*">$/i);
+            const closeTagMatch = after.match(/^<\/span>/i);
+            if (openTagMatch && closeTagMatch) {
+              nextVal = before.slice(0, -openTagMatch[0].length) + selectedText + after.slice(closeTagMatch[0].length);
+              cursorStart = selectionStart - openTagMatch[0].length;
+              cursorEnd = cursorStart + selectedText.length;
+            } else {
+              return;
+            }
+          }
+        } else {
+          // Applying colorHex
+          const spanOuterRegex = /^<span style="color:\s*[^"]*">([\s\S]*)<\/span>$/i;
+          if (spanOuterRegex.test(selectedText)) {
+            const inner = selectedText.replace(spanOuterRegex, "$1");
+            const wrapped = `<span style="color: ${colorHex}">${inner}</span>`;
+            nextVal = before + wrapped + after;
+            cursorStart = selectionStart;
+            cursorEnd = selectionStart + wrapped.length;
+          } else {
+            const openTagMatch = before.match(/<span style="color:\s*[^"]*">$/i);
+            const closeTagMatch = after.match(/^<\/span>/i);
+            if (openTagMatch && closeTagMatch) {
+              const beforeClean = before.slice(0, -openTagMatch[0].length);
+              const afterClean = after.slice(closeTagMatch[0].length);
+              const wrapped = `<span style="color: ${colorHex}">${selectedText}</span>`;
+              nextVal = beforeClean + wrapped + afterClean;
+              cursorStart = beforeClean.length;
+              cursorEnd = cursorStart + wrapped.length;
+            } else {
+              const wrapped = `<span style="color: ${colorHex}">${selectedText}</span>`;
+              nextVal = before + wrapped + after;
+              cursorStart = selectionStart;
+              cursorEnd = selectionStart + wrapped.length;
+            }
+          }
+        }
+      } else {
+        if (!colorHex) return;
+        const tagOpen = `<span style="color: ${colorHex}">`;
+        const tagClose = `</span>`;
+        const placeholder = `${tagOpen}colored text${tagClose}`;
+        nextVal = before + placeholder + after;
+        cursorStart = selectionStart + tagOpen.length;
+        cursorEnd = cursorStart + "colored text".length;
+      }
+    } else {
+      if (!colorHex) return;
+      const snippet = `<span style="color: ${colorHex}">colored text</span>`;
+      nextVal = currentVal + (currentVal ? " " : "") + snippet;
+      cursorStart = nextVal.length - snippet.length + `<span style="color: ${colorHex}">`.length;
+      cursorEnd = cursorStart + "colored text".length;
+    }
+
+    if (isCol1) {
+      setCol1(nextVal);
+      emitChange(nextVal, col2, isSplit);
+    } else {
+      setCol2(nextVal);
+      emitChange(col1, nextVal, isSplit);
+    }
+
+    if (textarea) {
+      requestAnimationFrame(() => {
+        textarea.focus();
+        textarea.setSelectionRange(cursorStart, cursorEnd);
+      });
+    }
+  };
+
   // Keyboard helper for auto-indent, soft backspace, and tab indentation
   const handleKeyDown = (
     setter: (val: string) => void,
     isSecondCol: boolean = false
   ) => (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    const targetCol: 1 | 2 = isSecondCol ? 2 : 1;
+
+    // Cmd+B / Ctrl+B: Toggle Bold
+    if ((e.metaKey || e.ctrlKey) && (e.key === "b" || e.key === "B")) {
+      e.preventDefault();
+      wrapOrInsertBold(targetCol);
+      return;
+    }
+
+    // Cmd+I / Ctrl+I: Toggle Italic
+    if ((e.metaKey || e.ctrlKey) && (e.key === "i" || e.key === "I")) {
+      e.preventDefault();
+      wrapOrInsertItalic(targetCol);
+      return;
+    }
+
     const textarea = e.currentTarget;
     const update = (nextVal: string, newStart: number, newEnd: number) => {
       setter(nextVal);
@@ -179,16 +473,6 @@ export const DualNotepad: React.FC<DualNotepadProps> = ({
     if (handleTextareaTabKey(e, update)) return;
     if (handleTextareaBackspaceKey(e, update)) return;
     if (handleTextareaEnterKey(e, update, { enableBullets: true, enableColonBonus: true })) return;
-  };
-
-  // Switch column to edit mode if currently in preview
-  const ensureEditMode = (targetCol: 1 | 2) => {
-    if (!isSplit && viewModeSingle !== "edit") {
-      setViewModeSingle("edit");
-    } else if (isSplit) {
-      if (targetCol === 1 && viewModeCol1 !== "edit") setViewModeCol1("edit");
-      if (targetCol === 2 && viewModeCol2 !== "edit") setViewModeCol2("edit");
-    }
   };
 
   // Wraps selected text in code block or inserts code template with chosen language
@@ -451,6 +735,86 @@ export const DualNotepad: React.FC<DualNotepadProps> = ({
     );
   };
 
+  // Render formatting buttons: Bold, Italic, Color palette
+  const renderFormatButtons = (targetCol: 1 | 2 | "single") => {
+    const colIndex: 1 | 2 = targetCol === "single" ? 1 : targetCol;
+    const isColorMenuOpen = openColorMenu === targetCol;
+    const isSingle = targetCol === "single";
+    const btnClass = isSingle ? "dual-action-chip" : "dual-pane-mini-btn";
+    const iconSize = isSingle ? 12 : 11;
+
+    return (
+      <div className="dual-format-group">
+        <button
+          type="button"
+          className={btnClass}
+          onClick={() => wrapOrInsertBold(colIndex)}
+          title="Bold (Cmd+B / Ctrl+B)"
+        >
+          <Bold size={iconSize} />
+        </button>
+        <button
+          type="button"
+          className={btnClass}
+          onClick={() => wrapOrInsertItalic(colIndex)}
+          title="Italic (Cmd+I / Ctrl+I)"
+        >
+          <Italic size={iconSize} />
+        </button>
+        <div className="dual-color-btn-group">
+          <button
+            type="button"
+            className={`${btnClass} ${isColorMenuOpen ? "active" : ""}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              setOpenColorMenu(isColorMenuOpen ? null : targetCol);
+            }}
+            title="Text Color Palette"
+          >
+            <Palette size={iconSize} />
+            <ChevronDown size={isSingle ? 10 : 9} />
+          </button>
+
+          {isColorMenuOpen && (
+            <div className="dual-color-dropdown-menu" onClick={(e) => e.stopPropagation()}>
+              <div className="dual-color-menu-header">Text Color</div>
+              <div className="dual-color-grid">
+                {NOTE_COLOR_OPTIONS.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    className="dual-color-item"
+                    onClick={() => {
+                      setOpenColorMenu(null);
+                      wrapOrInsertColor(colIndex, c.hex);
+                    }}
+                    title={c.name}
+                  >
+                    <span className="color-swatch-dot" style={{ backgroundColor: c.hex }} />
+                    <span className="color-swatch-name">{c.name}</span>
+                  </button>
+                ))}
+              </div>
+              <div className="dual-color-menu-footer">
+                <button
+                  type="button"
+                  className="dual-color-clear-btn"
+                  onClick={() => {
+                    setOpenColorMenu(null);
+                    wrapOrInsertColor(colIndex, "");
+                  }}
+                  title="Remove color formatting from selection"
+                >
+                  Clear Color
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className={`dual-notepad-container ${className}`}>
       {/* Top Header / View Toggle Bar */}
@@ -509,6 +873,7 @@ export const DualNotepad: React.FC<DualNotepadProps> = ({
           <div className="dual-topbar-right-group">
             {viewModeSingle === "edit" ? (
               <div className="dual-notepad-quick-actions">
+                {renderFormatButtons("single")}
                 <button
                   type="button"
                   className="dual-action-chip"
@@ -640,6 +1005,7 @@ export const DualNotepad: React.FC<DualNotepadProps> = ({
                   <div className="dual-panel-actions">
                     {viewModeCol1 === "edit" ? (
                       <>
+                        {renderFormatButtons(1)}
                         <button
                           type="button"
                           className="dual-pane-mini-btn"
@@ -728,6 +1094,7 @@ export const DualNotepad: React.FC<DualNotepadProps> = ({
                   <div className="dual-panel-actions">
                     {viewModeCol2 === "edit" ? (
                       <>
+                        {renderFormatButtons(2)}
                         <button
                           type="button"
                           className="dual-pane-mini-btn"
