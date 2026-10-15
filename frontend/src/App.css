@@ -3875,6 +3875,7 @@ html {
   padding: 5px;
   display: flex;
   flex-direction: column;
+  user-select: none;
 }
 
 .dual-lang-menu-header {
@@ -3969,6 +3970,7 @@ html {
   padding: 6px;
   display: flex;
   flex-direction: column;
+  user-select: none;
 }
 
 .dual-color-menu-header {

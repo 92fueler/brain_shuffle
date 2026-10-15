@@ -113,10 +113,14 @@ export const DualNotepad: React.FC<DualNotepadProps> = ({
   const [openLangMenu, setOpenLangMenu] = useState<1 | 2 | "single" | null>(null);
   const [openColorMenu, setOpenColorMenu] = useState<1 | 2 | "single" | null>(null);
 
-  // Close dropdowns on outside click or Escape key
+  // Close dropdowns on outside click (mousedown) or Escape key
   useEffect(() => {
     if (openLangMenu === null && openColorMenu === null) return;
-    const handleClickOutside = () => {
+    const handleMouseDownOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && target.closest(".dual-color-btn-group, .dual-code-btn-group")) {
+        return;
+      }
       setOpenLangMenu(null);
       setOpenColorMenu(null);
     };
@@ -126,10 +130,10 @@ export const DualNotepad: React.FC<DualNotepadProps> = ({
         setOpenColorMenu(null);
       }
     };
-    window.addEventListener("click", handleClickOutside);
+    window.addEventListener("mousedown", handleMouseDownOutside);
     window.addEventListener("keydown", handleKeyDown);
     return () => {
-      window.removeEventListener("click", handleClickOutside);
+      window.removeEventListener("mousedown", handleMouseDownOutside);
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [openLangMenu, openColorMenu]);
@@ -720,6 +724,7 @@ export const DualNotepad: React.FC<DualNotepadProps> = ({
         <button
           type="button"
           className={targetCol === "single" ? "dual-action-chip" : "dual-pane-mini-btn"}
+          onMouseDown={(e) => e.preventDefault()}
           onClick={() => wrapOrInsertCodeBlock(activeLang, colIndex)}
           title={`Wrap selection or insert ${activeLang} code block`}
         >
@@ -729,6 +734,7 @@ export const DualNotepad: React.FC<DualNotepadProps> = ({
         <button
           type="button"
           className={`${targetCol === "single" ? "dual-action-chip caret" : "dual-pane-mini-btn caret"} ${isMenuOpen ? "active" : ""}`}
+          onMouseDown={(e) => e.preventDefault()}
           onClick={(e) => {
             e.stopPropagation();
             setOpenColorMenu(null);
@@ -740,7 +746,11 @@ export const DualNotepad: React.FC<DualNotepadProps> = ({
         </button>
 
         {isMenuOpen && (
-          <div className="dual-lang-dropdown-menu" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="dual-lang-dropdown-menu"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="dual-lang-menu-header">Select Language</div>
             <div className="dual-lang-menu-list">
               {SUPPORTED_LANGUAGES.map((lang) => (
@@ -748,6 +758,7 @@ export const DualNotepad: React.FC<DualNotepadProps> = ({
                   key={lang.id}
                   type="button"
                   className={`dual-lang-menu-item ${activeLang === lang.id ? "active" : ""}`}
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={() => {
                     setActiveLang(lang.id);
                     setOpenLangMenu(null);
@@ -778,6 +789,7 @@ export const DualNotepad: React.FC<DualNotepadProps> = ({
         <button
           type="button"
           className={btnClass}
+          onMouseDown={(e) => e.preventDefault()}
           onClick={() => wrapOrInsertBold(colIndex)}
           title="Bold (Cmd+B / Ctrl+B)"
         >
@@ -786,6 +798,7 @@ export const DualNotepad: React.FC<DualNotepadProps> = ({
         <button
           type="button"
           className={btnClass}
+          onMouseDown={(e) => e.preventDefault()}
           onClick={() => wrapOrInsertItalic(colIndex)}
           title="Italic (Cmd+I / Ctrl+I)"
         >
@@ -795,6 +808,7 @@ export const DualNotepad: React.FC<DualNotepadProps> = ({
           <button
             type="button"
             className={`${btnClass} ${isColorMenuOpen ? "active" : ""}`}
+            onMouseDown={(e) => e.preventDefault()}
             onClick={(e) => {
               e.stopPropagation();
               setOpenLangMenu(null);
@@ -807,7 +821,11 @@ export const DualNotepad: React.FC<DualNotepadProps> = ({
           </button>
 
           {isColorMenuOpen && (
-            <div className="dual-color-dropdown-menu" onClick={(e) => e.stopPropagation()}>
+            <div
+              className="dual-color-dropdown-menu"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={(e) => e.stopPropagation()}
+            >
               <div className="dual-color-menu-header">Text Color</div>
               <div className="dual-color-grid">
                 {NOTE_COLOR_OPTIONS.map((c) => (
@@ -815,6 +833,7 @@ export const DualNotepad: React.FC<DualNotepadProps> = ({
                     key={c.id}
                     type="button"
                     className="dual-color-item"
+                    onMouseDown={(e) => e.preventDefault()}
                     onClick={() => {
                       setOpenColorMenu(null);
                       wrapOrInsertColor(colIndex, c.hex);
@@ -830,6 +849,7 @@ export const DualNotepad: React.FC<DualNotepadProps> = ({
                 <button
                   type="button"
                   className="dual-color-clear-btn"
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={() => {
                     setOpenColorMenu(null);
                     wrapOrInsertColor(colIndex, "");
@@ -908,6 +928,7 @@ export const DualNotepad: React.FC<DualNotepadProps> = ({
                 <button
                   type="button"
                   className="dual-action-chip"
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={() => wrapOrInsertList(1)}
                   title="Insert or wrap in bullet points"
                 >
@@ -918,6 +939,7 @@ export const DualNotepad: React.FC<DualNotepadProps> = ({
                 <button
                   type="button"
                   className="dual-action-chip"
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={() => wrapOrInsertCallout(1)}
                   title="Insert or wrap in callout quote"
                 >
@@ -1040,6 +1062,7 @@ export const DualNotepad: React.FC<DualNotepadProps> = ({
                         <button
                           type="button"
                           className="dual-pane-mini-btn"
+                          onMouseDown={(e) => e.preventDefault()}
                           onClick={() => wrapOrInsertList(1)}
                           title="Insert Bullet List into Pad 1"
                         >
@@ -1049,6 +1072,7 @@ export const DualNotepad: React.FC<DualNotepadProps> = ({
                         <button
                           type="button"
                           className="dual-pane-mini-btn"
+                          onMouseDown={(e) => e.preventDefault()}
                           onClick={() => wrapOrInsertCallout(1)}
                           title="Insert Callout into Pad 1"
                         >
@@ -1129,6 +1153,7 @@ export const DualNotepad: React.FC<DualNotepadProps> = ({
                         <button
                           type="button"
                           className="dual-pane-mini-btn"
+                          onMouseDown={(e) => e.preventDefault()}
                           onClick={() => wrapOrInsertList(2)}
                           title="Insert Bullet List into Pad 2"
                         >
@@ -1138,6 +1163,7 @@ export const DualNotepad: React.FC<DualNotepadProps> = ({
                         <button
                           type="button"
                           className="dual-pane-mini-btn"
+                          onMouseDown={(e) => e.preventDefault()}
                           onClick={() => wrapOrInsertCallout(2)}
                           title="Insert Callout into Pad 2"
                         >
