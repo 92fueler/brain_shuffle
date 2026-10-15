@@ -4093,21 +4093,34 @@ html {
   white-space: normal !important;
 }
 
-.rich-markdown-viewer p,
 .rich-markdown-viewer ul,
 .rich-markdown-viewer ol,
-.rich-markdown-viewer li,
-.rich-markdown-viewer blockquote {
+.rich-markdown-viewer li {
   white-space: normal !important;
 }
 
 .rich-markdown-viewer .wmde-markdown p,
-.rich-markdown-viewer p {
+.rich-markdown-viewer p,
+.rich-markdown-viewer blockquote,
+.rich-markdown-viewer blockquote p {
   font-family: var(--font-notes) !important;
   font-size: 13px !important;
   margin-top: 0 !important;
   margin-bottom: 6px !important;
   line-height: 1.45 !important;
+  white-space: pre-line !important;
+}
+
+.rich-markdown-viewer .wmde-markdown li > p,
+.rich-markdown-viewer .wmde-markdown li p,
+.rich-markdown-viewer li > p,
+.rich-markdown-viewer li p {
+  margin: 0 !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  display: inline !important;
+  line-height: inherit !important;
+  white-space: normal !important;
 }
 
 .rich-markdown-viewer .wmde-markdown ul,
@@ -4169,6 +4182,7 @@ html {
   margin-bottom: 0 !important;
   display: inline !important;
   line-height: inherit !important;
+  white-space: normal !important;
 }
 
 /* If an unfenced pre occurs inside li, prevent it from rendering as a code block box */
