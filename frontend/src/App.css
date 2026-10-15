@@ -4012,7 +4012,7 @@ html {
 }
 
 /* If an unfenced pre occurs inside li, prevent it from rendering as a code block box */
-.rich-markdown-viewer li > pre:not([class*="language-"]) {
+.rich-markdown-viewer li pre:not([class*="language-"]) {
   background: transparent !important;
   border: none !important;
   padding: 0 !important;
@@ -4025,7 +4025,7 @@ html {
   border-radius: 0 !important;
 }
 
-.rich-markdown-viewer li > pre:not([class*="language-"]) code {
+.rich-markdown-viewer li pre:not([class*="language-"]) code {
   background: transparent !important;
   border: none !important;
   padding: 0 !important;

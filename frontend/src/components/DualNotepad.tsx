@@ -16,6 +16,8 @@ import {
   handleTextareaTabKey,
   handleTextareaBackspaceKey,
   handleTextareaEnterKey,
+  parseNotesColumns,
+  SPLIT_DELIMITER,
 } from "../indentation";
 
 interface DualNotepadProps {
@@ -37,7 +39,7 @@ export interface CodeLanguage {
   label: string;
 }
 
-export const SUPPORTED_LANGUAGES: CodeLanguage[] = [
+const SUPPORTED_LANGUAGES: CodeLanguage[] = [
   { id: "python", label: "Python" },
   { id: "typescript", label: "TypeScript" },
   { id: "javascript", label: "JavaScript" },
@@ -51,16 +53,13 @@ export const SUPPORTED_LANGUAGES: CodeLanguage[] = [
   { id: "text", label: "Plain Text" },
 ];
 
-export const SHORT_LANG_LABELS: Record<string, string> = {
+const SHORT_LANG_LABELS: Record<string, string> = {
   python: "py",
   typescript: "ts",
   javascript: "js",
   bash: "sh",
   text: "txt",
 };
-
-const SPLIT_DELIMITER_REGEX = /\n\s*---\s*\n/;
-const SPLIT_DELIMITER = "\n\n---\n\n";
 
 export const DualNotepad: React.FC<DualNotepadProps> = ({
   value,
@@ -78,24 +77,7 @@ export const DualNotepad: React.FC<DualNotepadProps> = ({
   const textarea1Ref = useRef<HTMLTextAreaElement>(null);
   const textarea2Ref = useRef<HTMLTextAreaElement>(null);
 
-  // Parse initial state from incoming value
-  const parseColumns = (val: string) => {
-    if (SPLIT_DELIMITER_REGEX.test(val)) {
-      const parts = val.split(SPLIT_DELIMITER_REGEX);
-      return {
-        col1: parts[0] || "",
-        col2: parts.slice(1).join("\n\n---\n\n") || "",
-        hasDelimiter: true,
-      };
-    }
-    return {
-      col1: val || "",
-      col2: "",
-      hasDelimiter: false,
-    };
-  };
-
-  const initialParsed = parseColumns(value);
+  const initialParsed = parseNotesColumns(value);
   const [isSplit, setIsSplit] = useState<boolean>(allowSplit ? initialParsed.hasDelimiter : false);
   const [col1, setCol1] = useState<string>(initialParsed.col1);
   const [col2, setCol2] = useState<string>(initialParsed.col2);
@@ -129,7 +111,7 @@ export const DualNotepad: React.FC<DualNotepadProps> = ({
   const lastSyncedValue = useRef<string>(value);
   useEffect(() => {
     if (value !== lastSyncedValue.current) {
-      const parsed = parseColumns(value);
+      const parsed = parseNotesColumns(value);
       setCol1(parsed.col1);
       setCol2(parsed.col2);
       setIsSplit(allowSplit ? parsed.hasDelimiter : false);
@@ -141,10 +123,10 @@ export const DualNotepad: React.FC<DualNotepadProps> = ({
   const emitChange = (nextCol1: string, nextCol2: string, splitActive: boolean) => {
     let combined = nextCol1;
     if (splitActive) {
-      if (nextCol2.trim()) {
+      if (nextCol1.trim() || nextCol2.trim()) {
         combined = nextCol1.trimEnd() + SPLIT_DELIMITER + nextCol2.trimStart();
       } else {
-        combined = nextCol1;
+        combined = "";
       }
     }
     lastSyncedValue.current = combined;

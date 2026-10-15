@@ -20,24 +20,7 @@ import { CodeScratchpad } from "./CodeScratchpad";
 import { DualNotepad } from "./DualNotepad";
 import { MarkdownViewer } from "./MarkdownViewer";
 import { Group, Panel, Separator } from "react-resizable-panels";
-
-const SPLIT_DELIMITER_REGEX = /\n\s*---\s*\n/;
-
-const parseNotesColumns = (notes: string) => {
-  if (SPLIT_DELIMITER_REGEX.test(notes)) {
-    const parts = notes.split(SPLIT_DELIMITER_REGEX);
-    return {
-      isSplit: true,
-      col1: parts[0] || "",
-      col2: parts.slice(1).join("\n\n---\n\n") || "",
-    };
-  }
-  return {
-    isSplit: false,
-    col1: notes || "",
-    col2: "",
-  };
-};
+import { parseNotesColumns } from "../indentation";
 
 interface ProblemFlashcardProps {
   problem: Problem;

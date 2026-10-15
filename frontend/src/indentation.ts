@@ -5,8 +5,49 @@ import { indentMore } from "@codemirror/commands";
 export const TAB_SIZE = 4;
 
 /**
+ * Shared split delimiter constants and regex.
+ * Regex matches split delimiter with leading newline and either trailing newline or end of string,
+ * preventing delimiter loss when trimmed strings are stored.
+ */
+export const SPLIT_DELIMITER_REGEX = /\n[ \t]*---[ \t]*(?:\n|$)/;
+export const SPLIT_DELIMITER = "\n\n---\n\n";
+
+export interface ParsedNotesColumns {
+  col1: string;
+  col2: string;
+  isSplit: boolean;
+  hasDelimiter: boolean;
+}
+
+/**
+ * Parses markdown notes into 2 columns if the split delimiter is present.
+ */
+export function parseNotesColumns(val: string): ParsedNotesColumns {
+  if (!val) {
+    return { col1: "", col2: "", isSplit: false, hasDelimiter: false };
+  }
+  const match = val.match(SPLIT_DELIMITER_REGEX);
+  if (match && match.index !== undefined) {
+    const col1 = val.slice(0, match.index).trimEnd();
+    const col2 = val.slice(match.index + match[0].length).trimStart();
+    return {
+      col1,
+      col2,
+      isSplit: true,
+      hasDelimiter: true,
+    };
+  }
+  return {
+    col1: val || "",
+    col2: "",
+    isSplit: false,
+    hasDelimiter: false,
+  };
+}
+
+/**
  * Normalizes markdown text to ensure clean, Google Docs-style list rendering:
- * 1. Cleans multiple spaces or tabs after list markers (- , * , 1. ) to a single space.
+ * 1. Cleans multiple spaces or tabs after list markers (- , * , + , 1. ) to a single space.
  *    Without this, CommonMark parses "-    text" as an indented code block inside <li>!
  * 2. Normalizes unicode bullet points (•) at line starts to standard Markdown lists (- ).
  * 3. Preserves leading indentation before the bullet marker so sub-lists (nested bullets) work cleanly.
@@ -15,7 +56,7 @@ export function normalizeMarkdown(source: string): string {
   if (!source) return "";
   return source
     .replace(/^([ \t]*)•[ \t]*/gm, "$1- ")
-    .replace(/^([ \t]*)([-*]|\d+\.)([ \t]*\t[ \t]*|[ \t]{2,})/gm, "$1$2 ");
+    .replace(/^([ \t]*)([-*+]|\d+\.)([ \t]*\t[ \t]*|[ \t]{2,})/gm, "$1$2 ");
 }
 
 /**
@@ -182,7 +223,7 @@ export function handleTextareaTabKey(
   // indent the whole list line to create a nested sub-bullet (Google Docs style)
   // rather than inserting spaces between the bullet marker and text.
   const lineText = currentVal.slice(firstLineStart, lastLineEnd);
-  const bulletMatch = lineText.match(/^([ \t]*)([-*•]|\d+\.)[ \t]*/);
+  const bulletMatch = lineText.match(/^([ \t]*)([-*+•]|\d+\.)[ \t]*/);
   if (bulletMatch && (selectionStart - firstLineStart) <= bulletMatch[0].length) {
     const indent = " ".repeat(TAB_SIZE);
     const nextVal =
@@ -280,7 +321,7 @@ export function handleTextareaEnterKey(
   const lineText = currentVal.slice(lineStart, selectionStart);
 
   if (options?.enableBullets) {
-    const bulletMatch = lineText.match(/^([ \t]*)([-*•]|\d+\.)[ \t]+/);
+    const bulletMatch = lineText.match(/^([ \t]*)([-*+•]|\d+\.)[ \t]+/);
     if (bulletMatch) {
       if (lineText.trim() === bulletMatch[2]) {
         e.preventDefault();
