@@ -24,6 +24,7 @@ class Problem(SQLModel, table=True):
     cadence: str = Field(default="weekly", description="Target rolling cadence: daily, intra_week, weekly, monthly")
     is_starred: bool = Field(default=False, index=True, description="Whether problem is marked as important")
     is_difficult: bool = Field(default=False, index=True, description="Whether problem is marked as very difficult")
+    sort_order: int = Field(default=0, index=True, description="Manual display order index (ascending)")
     last_reviewed_at: Optional[datetime] = Field(default=None)
     next_review_due: Optional[datetime] = Field(default=None)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

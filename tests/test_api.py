@@ -291,4 +291,35 @@ def test_category_full_crud_and_safety_checks(client: TestClient):
     assert get_gone.status_code == 404
 
 
+def test_problem_manual_reorder(client: TestClient):
+    cat_res = client.post("/api/categories/", json={
+        "slug": "coding-order",
+        "name": "Coding Order",
+    })
+    cat_id = cat_res.json()["id"]
 
+    ids = []
+    for title in ["Problem A", "Problem B", "Problem C"]:
+        res = client.post("/api/problems/", json={
+            "category_id": cat_id,
+            "title": title,
+            "prompt": f"Prompt for {title}",
+            "notes": f"Notes for {title}",
+        })
+        assert res.status_code == 201
+        ids.append(res.json()["id"])
+
+    # Newly created problems appear at the top (C, B, A)
+    list_before = client.get("/api/problems/").json()
+    assert [p["id"] for p in list_before] == [ids[2], ids[1], ids[0]]
+
+    # Manually reorder to [Problem A, Problem C, Problem B]
+    desired_order = [ids[0], ids[2], ids[1]]
+    reorder_res = client.put("/api/problems/reorder", json={
+        "ordered_ids": desired_order
+    })
+    assert reorder_res.status_code == 204
+
+    list_after = client.get("/api/problems/").json()
+    assert [p["id"] for p in list_after] == desired_order
+    assert [p["sort_order"] for p in list_after] == [0, 1, 2]

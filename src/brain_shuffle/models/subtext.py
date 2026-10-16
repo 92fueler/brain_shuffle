@@ -44,6 +44,7 @@ class Subtext(SQLModel, table=True):
     retention_score: float = Field(default=1.0)
     is_starred: bool = Field(default=False, index=True, description="Whether subtext is marked as important")
     is_difficult: bool = Field(default=False, index=True, description="Whether subtext is marked as very difficult")
+    sort_order: int = Field(default=0, index=True, description="Manual display order index (ascending)")
     last_reviewed_at: Optional[datetime] = Field(default=None)
     next_review_due: Optional[datetime] = Field(default=None, index=True)
 

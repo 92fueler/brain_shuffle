@@ -34,6 +34,7 @@ class SubtextUpdate(BaseModel):
     cadence: Optional[str] = None
     is_starred: Optional[bool] = None
     is_difficult: Optional[bool] = None
+    sort_order: Optional[int] = None
 
     @field_validator("tags", mode="before")
     @classmethod
@@ -52,10 +53,15 @@ class SubtextRead(SubtextBase):
     cadence: str = "weekly"
     is_starred: bool = False
     is_difficult: bool = False
+    sort_order: int = 0
     last_reviewed_at: Optional[datetime] = None
     next_review_due: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
+
+
+class SubtextReorderRequest(BaseModel):
+    ordered_ids: List[uuid.UUID]
 
 
 class SubtextReviewSubmission(BaseModel):

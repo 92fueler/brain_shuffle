@@ -60,6 +60,7 @@ class BackupService:
                         cadence=prob.cadence,
                         is_starred=bool(getattr(prob, "is_starred", False)),
                         is_difficult=bool(getattr(prob, "is_difficult", False)),
+                        sort_order=int(getattr(prob, "sort_order", 0) or 0),
                         last_reviewed_at=prob.last_reviewed_at,
                         next_review_due=prob.next_review_due,
                         review_logs=backup_logs,
@@ -93,6 +94,7 @@ class BackupService:
                         cadence=sub.cadence,
                         is_starred=bool(getattr(sub, "is_starred", False)),
                         is_difficult=bool(getattr(sub, "is_difficult", False)),
+                        sort_order=int(getattr(sub, "sort_order", 0) or 0),
                         review_count=sub.review_count,
                         retention_score=sub.retention_score,
                         last_reviewed_at=sub.last_reviewed_at,
@@ -178,6 +180,7 @@ class BackupService:
                         cadence=getattr(prob_data, "cadence", "weekly") or "weekly",
                         is_starred=bool(getattr(prob_data, "is_starred", False)),
                         is_difficult=bool(getattr(prob_data, "is_difficult", False)),
+                        sort_order=int(getattr(prob_data, "sort_order", 0) or 0),
                         last_reviewed_at=prob_data.last_reviewed_at,
                         next_review_due=prob_data.next_review_due,
                     )
@@ -197,6 +200,8 @@ class BackupService:
                         problem.is_starred = bool(prob_data.is_starred)
                     if hasattr(prob_data, "is_difficult"):
                         problem.is_difficult = bool(prob_data.is_difficult)
+                    if hasattr(prob_data, "sort_order"):
+                        problem.sort_order = int(prob_data.sort_order or 0)
                     problem.last_reviewed_at = prob_data.last_reviewed_at
                     problem.next_review_due = prob_data.next_review_due
                     self.session.add(problem)
@@ -242,6 +247,7 @@ class BackupService:
                         cadence=getattr(sub_data, "cadence", "weekly") or "weekly",
                         is_starred=bool(getattr(sub_data, "is_starred", False)),
                         is_difficult=bool(getattr(sub_data, "is_difficult", False)),
+                        sort_order=int(getattr(sub_data, "sort_order", 0) or 0),
                         review_count=sub_data.review_count,
                         retention_score=sub_data.retention_score,
                         last_reviewed_at=sub_data.last_reviewed_at,
@@ -260,6 +266,8 @@ class BackupService:
                         subtext.is_starred = bool(sub_data.is_starred)
                     if hasattr(sub_data, "is_difficult"):
                         subtext.is_difficult = bool(sub_data.is_difficult)
+                    if hasattr(sub_data, "sort_order"):
+                        subtext.sort_order = int(sub_data.sort_order or 0)
                     subtext.review_count = sub_data.review_count
                     subtext.retention_score = sub_data.retention_score
                     subtext.last_reviewed_at = sub_data.last_reviewed_at

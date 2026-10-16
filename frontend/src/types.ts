@@ -19,6 +19,7 @@ export interface Problem {
   cadence?: string;
   is_starred?: boolean;
   is_difficult?: boolean;
+  sort_order?: number;
   last_reviewed_at?: string | null;
   next_review_due?: string | null;
   created_at: string;
@@ -96,6 +97,7 @@ export interface BackupPayload {
       cadence?: string;
       is_starred?: boolean;
       is_difficult?: boolean;
+      sort_order?: number;
       last_reviewed_at?: string | null;
       next_review_due?: string | null;
       review_logs?: {
@@ -113,6 +115,7 @@ export interface BackupPayload {
       cadence?: string;
       is_starred?: boolean;
       is_difficult?: boolean;
+      sort_order?: number;
       review_count: number;
       retention_score: number;
       last_reviewed_at?: string | null;
@@ -155,6 +158,7 @@ export interface Subtext {
   cadence: string;
   is_starred?: boolean;
   is_difficult?: boolean;
+  sort_order?: number;
   review_count: number;
   retention_score: number;
   last_reviewed_at?: string | null;
@@ -183,6 +187,7 @@ export interface SubtextUpdatePayload {
   cadence?: string;
   is_starred?: boolean;
   is_difficult?: boolean;
+  sort_order?: number;
 }
 
 const SUBTEXT_CATEGORY_PREFIXES = [

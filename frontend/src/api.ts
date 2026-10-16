@@ -103,6 +103,15 @@ export async function deleteProblem(problemId: string): Promise<void> {
   if (!res.ok) throw new Error("Failed to delete problem");
 }
 
+export async function reorderProblems(orderedIds: string[]): Promise<void> {
+  const res = await fetch(`${BASE_URL}/problems/reorder`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ordered_ids: orderedIds }),
+  });
+  if (!res.ok) throw new Error("Failed to reorder problems");
+}
+
 export async function fetchCompanies(): Promise<CompanyStat[]> {
   const res = await fetch(`${BASE_URL}/companies/`);
   if (!res.ok) throw new Error("Failed to load companies");
@@ -277,6 +286,15 @@ export async function deleteSubtext(id: string): Promise<void> {
     method: "DELETE",
   });
   if (!res.ok) throw new Error("Failed to delete subtext");
+}
+
+export async function reorderSubtexts(orderedIds: string[]): Promise<void> {
+  const res = await fetch(`${BASE_URL}/subtexts/reorder`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ordered_ids: orderedIds }),
+  });
+  if (!res.ok) throw new Error("Failed to reorder subtexts");
 }
 
 export async function submitSubtextReview(id: string, submission: ReviewSubmission): Promise<Subtext> {

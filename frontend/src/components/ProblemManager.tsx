@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import type { Category, Problem, ProblemCreatePayload, Subtext } from "../types";
 import { isProblemCategory, isSubtextCategory } from "../types";
 import { formatCategoryName, getCategoryTheme } from "../categoryTheme";
@@ -6,6 +6,7 @@ import {
   createProblem,
   updateProblem,
   deleteProblem,
+  reorderProblems,
   createCategory,
   updateCategory,
   deleteCategory,
@@ -13,6 +14,7 @@ import {
   createSubtext,
   updateSubtext,
   deleteSubtext,
+  reorderSubtexts,
 } from "../api";
 import {
   handleTextareaTabKey,
@@ -37,6 +39,9 @@ import {
   Minimize2,
   Star,
   Circle,
+  GripVertical,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import { ProblemFlashcard } from "./ProblemFlashcard";
 import { SubtextFlashcard } from "./SubtextFlashcard";
@@ -522,12 +527,28 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
 
   const [optimisticStars, setOptimisticStars] = useState<Record<string, boolean>>({});
   const [optimisticDifficult, setOptimisticDifficult] = useState<Record<string, boolean>>({});
+  const [optimisticSortOrders, setOptimisticSortOrders] = useState<Record<string, number>>({});
+  const [draggedEntryId, setDraggedEntryId] = useState<string | null>(null);
+  const [dragOverEntryId, setDragOverEntryId] = useState<string | null>(null);
+  const reorderVersionRef = useRef(0);
 
   const isEntryStarred = (entry: { id: string; is_starred?: boolean }) =>
     entry.id in optimisticStars ? optimisticStars[entry.id] : Boolean(entry.is_starred);
 
   const isEntryDifficult = (entry: { id: string; is_difficult?: boolean }) =>
     entry.id in optimisticDifficult ? optimisticDifficult[entry.id] : Boolean(entry.is_difficult);
+
+  const getEntryOrder = (entry: { id: string; sort_order?: number }) =>
+    entry.id in optimisticSortOrders ? optimisticSortOrders[entry.id] : (entry.sort_order ?? 0);
+
+  const compareByOrder = (
+    a: { id: string; sort_order?: number; created_at: string },
+    b: { id: string; sort_order?: number; created_at: string }
+  ) => {
+    const orderDiff = getEntryOrder(a) - getEntryOrder(b);
+    if (orderDiff !== 0) return orderDiff;
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+  };
 
   const toggleEntryMarker = async (
     entry: { id: string; is_starred?: boolean; is_difficult?: boolean },
@@ -612,7 +633,7 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
 
   const filteredProblems = baseCategoryProblems
     .filter((p) => (!showStarredOnly || isEntryStarred(p)) && (!showDifficultOnly || isEntryDifficult(p)))
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    .sort(compareByOrder);
 
   const baseCategorySubtexts = !isSubtextSelected
     ? []
@@ -630,7 +651,94 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
 
   const filteredSubtexts = baseCategorySubtexts
     .filter((s) => (!showStarredOnly || isEntryStarred(s)) && (!showDifficultOnly || isEntryDifficult(s)))
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    .sort(compareByOrder);
+
+  const moveEntry = async (fromIndex: number, toIndex: number, isSubtext: boolean) => {
+    const visibleList = isSubtext ? filteredSubtexts : filteredProblems;
+    if (fromIndex === toIndex || toIndex < 0 || toIndex >= visibleList.length) return;
+
+    const reorderedVisible = [...visibleList];
+    const [moved] = reorderedVisible.splice(fromIndex, 1);
+    reorderedVisible.splice(toIndex, 0, moved);
+
+    const visibleIds = new Set(visibleList.map((item) => item.id));
+    const fullSorted = [...(isSubtext ? subtexts : problems)].sort(compareByOrder);
+    let visibleIdx = 0;
+    const nextFullIds = fullSorted.map((item) =>
+      visibleIds.has(item.id) ? reorderedVisible[visibleIdx++].id : item.id
+    );
+
+    const nextOptimistic: Record<string, number> = {};
+    nextFullIds.forEach((id, idx) => {
+      nextOptimistic[id] = idx;
+    });
+
+    const version = ++reorderVersionRef.current;
+    setOptimisticSortOrders((prev) => ({ ...prev, ...nextOptimistic }));
+    try {
+      if (isSubtext) {
+        await reorderSubtexts(nextFullIds);
+      } else {
+        await reorderProblems(nextFullIds);
+      }
+      if (reorderVersionRef.current === version) {
+        await onRefresh();
+      }
+    } catch (err) {
+      console.error("Failed to reorder entries", err);
+    } finally {
+      if (reorderVersionRef.current === version) {
+        setOptimisticSortOrders({});
+      }
+    }
+  };
+
+  const handleShiftEntry = (
+    index: number,
+    direction: -1 | 1,
+    isSubtext: boolean,
+    e: React.MouseEvent
+  ) => {
+    e.stopPropagation();
+    void moveEntry(index, index + direction, isSubtext);
+  };
+
+  const handleRowDragStart = (entryId: string, e: React.DragEvent) => {
+    setDraggedEntryId(entryId);
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", entryId);
+  };
+
+  const handleRowDragOver = (entryId: string, e: React.DragEvent) => {
+    if (!draggedEntryId) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    const nextOverId = draggedEntryId === entryId ? null : entryId;
+    if (dragOverEntryId !== nextOverId) {
+      setDragOverEntryId(nextOverId);
+    }
+  };
+
+  const handleRowDrop = (targetId: string, isSubtext: boolean, e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const sourceId = draggedEntryId || e.dataTransfer.getData("text/plain");
+    setDraggedEntryId(null);
+    setDragOverEntryId(null);
+    if (!sourceId || sourceId === targetId) return;
+
+    const visibleList = isSubtext ? filteredSubtexts : filteredProblems;
+    const fromIndex = visibleList.findIndex((item) => item.id === sourceId);
+    const toIndex = visibleList.findIndex((item) => item.id === targetId);
+    if (fromIndex !== -1 && toIndex !== -1) {
+      void moveEntry(fromIndex, toIndex, isSubtext);
+    }
+  };
+
+  const handleRowDragEnd = () => {
+    setDraggedEntryId(null);
+    setDragOverEntryId(null);
+  };
 
   const starredCount = isSubtextSelected
     ? baseCategorySubtexts.filter(isEntryStarred).length
@@ -981,7 +1089,7 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
           </div>
         ) : (
           <>
-            {filteredProblems.map((problem) => {
+            {filteredProblems.map((problem, index) => {
             const isExpanded = expandedId === problem.id;
             const isSelected = selectedProblemIds.has(problem.id);
             const isStarred = isEntryStarred(problem);
@@ -994,12 +1102,24 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
             return (
               <div
                 key={problem.id}
-                className={`problem-item ${isExpanded ? "expanded" : ""} ${isSelected ? "problem-row-selected" : ""} ${isStarred ? "problem-row-starred" : ""} ${isDifficult ? "problem-row-difficult" : ""}`}
+                draggable={!isExpanded}
+                onDragStart={(e) => handleRowDragStart(problem.id, e)}
+                onDragOver={(e) => handleRowDragOver(problem.id, e)}
+                onDrop={(e) => handleRowDrop(problem.id, false, e)}
+                onDragEnd={handleRowDragEnd}
+                className={`problem-item ${isExpanded ? "expanded" : ""} ${isSelected ? "problem-row-selected" : ""} ${isStarred ? "problem-row-starred" : ""} ${isDifficult ? "problem-row-difficult" : ""} ${draggedEntryId === problem.id ? "problem-row-dragging" : ""} ${dragOverEntryId === problem.id ? "problem-row-drag-over" : ""}`}
                 onClick={() => setExpandedId(isExpanded ? null : problem.id)}
               >
-                {/* Collapsed Row: Checkbox, Category Tag, Important Star & Difficult Red Circle Markers, Problem Title, Actions */}
+                {/* Collapsed Row: Drag Handle, Checkbox, Category Tag, Markers, Problem Title, Reorder & Edit Actions */}
                 <div className="problem-row-header">
                   <div className="problem-title-wrapper">
+                    <span
+                      className="row-drag-handle"
+                      title="Drag to reorder"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <GripVertical size={13.5} />
+                    </span>
                     <button
                       type="button"
                       className={`row-select-checkbox-btn ${isSelected ? "selected" : ""}`}
@@ -1018,6 +1138,24 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
                     <h3 className="problem-title-text">{problem.title}</h3>
                   </div>
                   <div className="problem-row-actions">
+                    <button
+                      type="button"
+                      className="icon-move-btn"
+                      onClick={(e) => handleShiftEntry(index, -1, false, e)}
+                      disabled={index === 0}
+                      title="Move up"
+                    >
+                      <ArrowUp size={13} />
+                    </button>
+                    <button
+                      type="button"
+                      className="icon-move-btn"
+                      onClick={(e) => handleShiftEntry(index, 1, false, e)}
+                      disabled={index === filteredProblems.length - 1}
+                      title="Move down"
+                    >
+                      <ArrowDown size={13} />
+                    </button>
                     <button
                       className="icon-edit-btn"
                       onClick={(e) => handleOpenEditModal(problem, e)}
@@ -1070,7 +1208,7 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
             );
           })}
 
-          {filteredSubtexts.map((subtext) => {
+          {filteredSubtexts.map((subtext, index) => {
             const isExpanded = expandedSubtextId === subtext.id;
             const isStarred = isEntryStarred(subtext);
             const isDifficult = isEntryDifficult(subtext);
@@ -1082,12 +1220,24 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
             return (
               <div
                 key={subtext.id}
-                className={`problem-item ${isExpanded ? "expanded" : ""} ${isStarred ? "problem-row-starred" : ""} ${isDifficult ? "problem-row-difficult" : ""}`}
+                draggable={!isExpanded}
+                onDragStart={(e) => handleRowDragStart(subtext.id, e)}
+                onDragOver={(e) => handleRowDragOver(subtext.id, e)}
+                onDrop={(e) => handleRowDrop(subtext.id, true, e)}
+                onDragEnd={handleRowDragEnd}
+                className={`problem-item ${isExpanded ? "expanded" : ""} ${isStarred ? "problem-row-starred" : ""} ${isDifficult ? "problem-row-difficult" : ""} ${draggedEntryId === subtext.id ? "problem-row-dragging" : ""} ${dragOverEntryId === subtext.id ? "problem-row-drag-over" : ""}`}
                 style={{ borderLeft: "3px solid #818cf8" }}
                 onClick={() => setExpandedSubtextId(isExpanded ? null : subtext.id)}
               >
                 <div className="problem-row-header">
                   <div className="problem-title-wrapper">
+                    <span
+                      className="row-drag-handle"
+                      title="Drag to reorder"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <GripVertical size={13.5} />
+                    </span>
                     <span
                       className="problem-category-pill"
                       style={catTheme.style}
@@ -1099,6 +1249,24 @@ export const ProblemManager: React.FC<ProblemManagerProps> = ({
                   </div>
 
                   <div className="problem-row-actions">
+                    <button
+                      type="button"
+                      className="icon-move-btn"
+                      onClick={(e) => handleShiftEntry(index, -1, true, e)}
+                      disabled={index === 0}
+                      title="Move up"
+                    >
+                      <ArrowUp size={13} />
+                    </button>
+                    <button
+                      type="button"
+                      className="icon-move-btn"
+                      onClick={(e) => handleShiftEntry(index, 1, true, e)}
+                      disabled={index === filteredSubtexts.length - 1}
+                      title="Move down"
+                    >
+                      <ArrowDown size={13} />
+                    </button>
                     <button
                       type="button"
                       className="icon-edit-btn"

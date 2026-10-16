@@ -2,10 +2,16 @@ from datetime import datetime, timezone
 from typing import List, Optional
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlmodel import Session, select
+from sqlmodel import Session, func, select
 from brain_shuffle.db import get_session
 from brain_shuffle.models.problem import Problem
-from brain_shuffle.schemas.problem import ProblemCreate, ProblemRead, ProblemReviewSubmission, ProblemUpdate
+from brain_shuffle.schemas.problem import (
+    ProblemCreate,
+    ProblemRead,
+    ProblemReorderRequest,
+    ProblemReviewSubmission,
+    ProblemUpdate,
+)
 from brain_shuffle.services.shuffle_engine import ShuffleEngine, resolve_cadence_schedule
 
 router = APIRouter(prefix="/problems", tags=["problems"])
@@ -18,7 +24,7 @@ def list_problems(
     search: Optional[str] = Query(None, description="Search by title, prompt, company, or tag"),
     session: Session = Depends(get_session),
 ) -> List[Problem]:
-    query = select(Problem).order_by(Problem.created_at.desc())
+    query = select(Problem).order_by(Problem.sort_order.asc(), Problem.created_at.desc())
     if category_id:
         query = query.where(Problem.category_id == category_id)
 
@@ -44,6 +50,8 @@ def list_problems(
 @router.post("/", response_model=ProblemRead, status_code=status.HTTP_201_CREATED)
 def create_problem(payload: ProblemCreate, session: Session = Depends(get_session)) -> Problem:
     problem = Problem.model_validate(payload)
+    min_order = session.exec(select(func.min(Problem.sort_order))).one()
+    problem.sort_order = (min_order - 1) if min_order is not None else 0
     if problem.cadence:
         now = datetime.now(timezone.utc)
         problem.cadence, problem.next_review_due = resolve_cadence_schedule(problem.cadence, now)
@@ -51,6 +59,25 @@ def create_problem(payload: ProblemCreate, session: Session = Depends(get_sessio
     session.commit()
     session.refresh(problem)
     return problem
+
+
+@router.put("/reorder", status_code=status.HTTP_204_NO_CONTENT)
+def reorder_problems(
+    payload: ProblemReorderRequest,
+    session: Session = Depends(get_session),
+) -> None:
+    if not payload.ordered_ids:
+        return
+    problems = session.exec(
+        select(Problem).where(Problem.id.in_(payload.ordered_ids))  # type: ignore[attr-defined]
+    ).all()
+    problem_map = {p.id: p for p in problems}
+    for idx, pid in enumerate(payload.ordered_ids):
+        prob = problem_map.get(pid)
+        if prob is not None:
+            prob.sort_order = idx
+            session.add(prob)
+    session.commit()
 
 
 @router.get("/{problem_id}", response_model=ProblemRead)

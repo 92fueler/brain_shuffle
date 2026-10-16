@@ -2,12 +2,13 @@ from datetime import datetime, timezone, timedelta
 from typing import List, Optional
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlmodel import Session, select
+from sqlmodel import Session, func, select
 from brain_shuffle.db import get_session
 from brain_shuffle.models.subtext import Subtext, SubtextReviewLog
 from brain_shuffle.schemas.subtext import (
     SubtextCreate,
     SubtextRead,
+    SubtextReorderRequest,
     SubtextReviewSubmission,
     SubtextUpdate,
 )
@@ -23,7 +24,7 @@ def list_subtexts(
     search: Optional[str] = Query(None, description="Search in title, original_text, subtext, or tags"),
     session: Session = Depends(get_session),
 ) -> List[Subtext]:
-    query = select(Subtext).order_by(Subtext.created_at.desc())
+    query = select(Subtext).order_by(Subtext.sort_order.asc(), Subtext.created_at.desc())
     if category_id:
         query = query.where(Subtext.category_id == category_id)
 
@@ -95,6 +96,8 @@ def get_subtext_shuffle_batch(
 @router.post("/", response_model=SubtextRead, status_code=status.HTTP_201_CREATED)
 def create_subtext(payload: SubtextCreate, session: Session = Depends(get_session)) -> Subtext:
     subtext = Subtext.model_validate(payload)
+    min_order = session.exec(select(func.min(Subtext.sort_order))).one()
+    subtext.sort_order = (min_order - 1) if min_order is not None else 0
     now = datetime.now(timezone.utc)
     if subtext.cadence:
         subtext.cadence, subtext.next_review_due = resolve_cadence_schedule(subtext.cadence, now)
@@ -106,6 +109,25 @@ def create_subtext(payload: SubtextCreate, session: Session = Depends(get_sessio
     session.commit()
     session.refresh(subtext)
     return subtext
+
+
+@router.put("/reorder", status_code=status.HTTP_204_NO_CONTENT)
+def reorder_subtexts(
+    payload: SubtextReorderRequest,
+    session: Session = Depends(get_session),
+) -> None:
+    if not payload.ordered_ids:
+        return
+    subtexts = session.exec(
+        select(Subtext).where(Subtext.id.in_(payload.ordered_ids))  # type: ignore[attr-defined]
+    ).all()
+    subtext_map = {s.id: s for s in subtexts}
+    for idx, sid in enumerate(payload.ordered_ids):
+        sub = subtext_map.get(sid)
+        if sub is not None:
+            sub.sort_order = idx
+            session.add(sub)
+    session.commit()
 
 
 @router.get("/{subtext_id}", response_model=SubtextRead)
